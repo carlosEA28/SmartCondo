@@ -1,0 +1,47 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - bodyclose
+    - dogsled
+    - errcheck
+    - errorlint
+    - exportloopref
+    - gocritic
+    - gofmt
+    - goimports
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - prealloc
+    - revive
+    - staticcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - "disableStutteringCheck"
+  goimports:
+    local-prefixes: github.com/smartcondo
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocritic
+        - errcheck
