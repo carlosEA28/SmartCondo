@@ -16,19 +16,9 @@ type CreateUserDTO struct {
 	Apartment   *CreateApartmentDTO `json:"apartment" binding:"required"`
 }
 
-type UpdateApartmentDTO struct {
-	Number *int    `json:"number" binding:"omitempty,gt=0"`
-	Block  *string `json:"block" binding:"omitempty,min=1,max=10"`
-}
-
 type UpdateUserDTO struct {
-	FullName    *string             `json:"full_name" binding:"omitempty,min=1,max=100"`
-	Email       *string             `json:"email" binding:"omitempty,email,max=100"`
-	Phone       *string             `json:"phone" binding:"omitempty,min=1,max=15"`
-	Status      *string             `json:"status" binding:"omitempty,oneof=ATIVO INATIVO BLOQUEADO"`
-	Role        *string             `json:"role" binding:"omitempty,oneof=MORADOR PORTEIRO SINDICO"`
-	Responsible *bool               `json:"responsible"`
-	Apartment   *UpdateApartmentDTO `json:"apartment"`
+	FullName string `json:"full_name" binding:"required,max=100"`
+	Phone    string `json:"phone" binding:"required,max=15"`
 }
 
 type ApartmentResponseDTO struct {
