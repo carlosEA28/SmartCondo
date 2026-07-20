@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/carlosEA28/smartcondo/internal/apperrors"
 	"github.com/carlosEA28/smartcondo/internal/dto"
-	"github.com/carlosEA28/smartcondo/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -36,7 +36,7 @@ func (h *userHandler) getByID(c *gin.Context) {
 
 	user, err := h.service.GetUser(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, services.ErrUserNotFound) {
+		if errors.Is(err, apperrors.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
@@ -73,14 +73,14 @@ func (h *userHandler) update(c *gin.Context) {
 	user, err := h.service.UpdateUser(c.Request.Context(), id, input)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrUserNotFound):
+		case errors.Is(err, apperrors.ErrUserNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		case errors.Is(err, services.ErrUserAlreadyExists):
+		case errors.Is(err, apperrors.ErrUserAlreadyExists):
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		case errors.Is(err, services.ErrApartmentRequired),
-			errors.Is(err, services.ErrApartmentNotAllowed),
-			errors.Is(err, services.ErrResponsibleNotAllowed),
-			errors.Is(err, services.ErrInvalidUserData):
+		case errors.Is(err, apperrors.ErrApartmentRequired),
+			errors.Is(err, apperrors.ErrApartmentNotAllowed),
+			errors.Is(err, apperrors.ErrResponsibleNotAllowed),
+			errors.Is(err, apperrors.ErrInvalidUserData):
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
@@ -100,9 +100,9 @@ func (h *userHandler) delete(c *gin.Context) {
 
 	if err := h.service.DeleteUser(c.Request.Context(), id); err != nil {
 		switch {
-		case errors.Is(err, services.ErrUserNotFound):
+		case errors.Is(err, apperrors.ErrUserNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		case errors.Is(err, services.ErrUserInUse):
+		case errors.Is(err, apperrors.ErrUserInUse):
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
@@ -123,11 +123,11 @@ func (h *userHandler) create(c *gin.Context) {
 	user, err := h.service.CreateUser(c.Request.Context(), input)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrUserAlreadyExists):
+		case errors.Is(err, apperrors.ErrUserAlreadyExists):
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		case errors.Is(err, services.ErrApartmentRequired),
-			errors.Is(err, services.ErrApartmentNotAllowed),
-			errors.Is(err, services.ErrResponsibleNotAllowed):
+		case errors.Is(err, apperrors.ErrApartmentRequired),
+			errors.Is(err, apperrors.ErrApartmentNotAllowed),
+			errors.Is(err, apperrors.ErrResponsibleNotAllowed):
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})

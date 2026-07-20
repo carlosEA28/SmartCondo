@@ -6,21 +6,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/carlosEA28/smartcondo/internal/apperrors"
 	"github.com/carlosEA28/smartcondo/internal/dto"
 	"github.com/carlosEA28/smartcondo/internal/models"
 	"github.com/carlosEA28/smartcondo/internal/repositories"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-)
-
-var (
-	ErrUserNotFound          = errors.New("user not found")
-	ErrUserAlreadyExists     = errors.New("user already exists")
-	ErrApartmentRequired     = errors.New("apartment is required for residents")
-	ErrApartmentNotAllowed   = errors.New("apartment is only allowed for residents")
-	ErrResponsibleNotAllowed = errors.New("only residents can be responsible for an apartment")
-	ErrInvalidUserData       = errors.New("invalid user data")
-	ErrUserInUse             = errors.New("user has related records")
 )
 
 type UserService struct {
@@ -34,8 +25,8 @@ func NewUserService(userRepository repositories.UserRepository) *UserService {
 func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (*dto.UserResponseDTO, error) {
 	user, err := s.userRepository.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, repositories.ErrUserNotFound) {
-			return nil, ErrUserNotFound
+		if errors.Is(err, apperrors.ErrUserNotFound) {
+			return nil, apperrors.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("get user: %w", err)
 	}
@@ -60,8 +51,8 @@ func (s *UserService) ListUsers(ctx context.Context) ([]dto.UserResponseDTO, err
 func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, input dto.UpdateUserDTO) (*dto.UserResponseDTO, error) {
 	user, err := s.userRepository.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, repositories.ErrUserNotFound) {
-			return nil, ErrUserNotFound
+		if errors.Is(err, apperrors.ErrUserNotFound) {
+			return nil, apperrors.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("find user to update: %w", err)
 	}
@@ -69,35 +60,35 @@ func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, input dto.Up
 	if input.FullName != nil {
 		fullName := strings.TrimSpace(*input.FullName)
 		if fullName == "" {
-			return nil, ErrInvalidUserData
+			return nil, apperrors.ErrInvalidUserData
 		}
 		user.FullName = fullName
 	}
 	if input.Phone != nil {
 		phone := strings.TrimSpace(*input.Phone)
 		if phone == "" {
-			return nil, ErrInvalidUserData
+			return nil, apperrors.ErrInvalidUserData
 		}
 		user.Phone = phone
 	}
 	if input.Status != nil {
 		status := models.UserStatus(*input.Status)
 		if status != models.UserStatusActive && status != models.UserStatusInactive && status != models.UserStatusBlocked {
-			return nil, ErrInvalidUserData
+			return nil, apperrors.ErrInvalidUserData
 		}
 		user.Status = status
 	}
 	if input.Email != nil {
 		email := strings.ToLower(strings.TrimSpace(*input.Email))
 		if email == "" {
-			return nil, ErrInvalidUserData
+			return nil, apperrors.ErrInvalidUserData
 		}
 		if email != user.Email {
 			existing, findErr := s.userRepository.FindByEmail(ctx, email)
 			switch {
 			case findErr == nil && existing.ID != user.ID:
-				return nil, ErrUserAlreadyExists
-			case findErr != nil && !errors.Is(findErr, repositories.ErrUserNotFound):
+				return nil, apperrors.ErrUserAlreadyExists
+			case findErr != nil && !errors.Is(findErr, apperrors.ErrUserNotFound):
 				return nil, fmt.Errorf("check existing user: %w", findErr)
 			}
 			user.Email = email
@@ -112,11 +103,11 @@ func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, input dto.Up
 	case models.RoleMorador:
 		if user.Apartment == nil {
 			if input.Apartment == nil || input.Apartment.Number == nil || input.Apartment.Block == nil {
-				return nil, ErrApartmentRequired
+				return nil, apperrors.ErrApartmentRequired
 			}
 			block := strings.TrimSpace(*input.Apartment.Block)
 			if block == "" {
-				return nil, ErrInvalidUserData
+				return nil, apperrors.ErrInvalidUserData
 			}
 			user.Apartment = &models.Apartment{
 				ID:     uuid.New(),
@@ -132,7 +123,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, input dto.Up
 			if input.Apartment.Block != nil {
 				block := strings.TrimSpace(*input.Apartment.Block)
 				if block == "" {
-					return nil, ErrInvalidUserData
+					return nil, apperrors.ErrInvalidUserData
 				}
 				user.Apartment.Block = block
 			}
@@ -143,24 +134,24 @@ func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, input dto.Up
 		}
 	case models.RolePorteiro, models.RoleSindico:
 		if input.Apartment != nil {
-			return nil, ErrApartmentNotAllowed
+			return nil, apperrors.ErrApartmentNotAllowed
 		}
 		if input.Responsible != nil && *input.Responsible {
-			return nil, ErrResponsibleNotAllowed
+			return nil, apperrors.ErrResponsibleNotAllowed
 		}
 		user.ApartmentID = nil
 		user.Apartment = nil
 		user.Responsible = false
 	default:
-		return nil, ErrInvalidUserData
+		return nil, apperrors.ErrInvalidUserData
 	}
 
 	if err := s.userRepository.Update(ctx, user, apartmentToSave); err != nil {
 		switch {
-		case errors.Is(err, repositories.ErrUserNotFound):
-			return nil, ErrUserNotFound
-		case errors.Is(err, repositories.ErrUserAlreadyExists):
-			return nil, ErrUserAlreadyExists
+		case errors.Is(err, apperrors.ErrUserNotFound):
+			return nil, apperrors.ErrUserNotFound
+		case errors.Is(err, apperrors.ErrUserAlreadyExists):
+			return nil, apperrors.ErrUserAlreadyExists
 		default:
 			return nil, fmt.Errorf("update user: %w", err)
 		}
@@ -172,10 +163,10 @@ func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, input dto.Up
 func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	if err := s.userRepository.Delete(ctx, id); err != nil {
 		switch {
-		case errors.Is(err, repositories.ErrUserNotFound):
-			return ErrUserNotFound
-		case errors.Is(err, repositories.ErrUserInUse):
-			return ErrUserInUse
+		case errors.Is(err, apperrors.ErrUserNotFound):
+			return apperrors.ErrUserNotFound
+		case errors.Is(err, apperrors.ErrUserInUse):
+			return apperrors.ErrUserInUse
 		default:
 			return fmt.Errorf("delete user: %w", err)
 		}
@@ -190,7 +181,7 @@ func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (
 	input.Phone = strings.TrimSpace(input.Phone)
 
 	if input.Apartment == nil {
-		return nil, ErrApartmentRequired
+		return nil, apperrors.ErrApartmentRequired
 	}
 	apartment := &models.Apartment{
 		ID:     uuid.New(),
@@ -200,9 +191,9 @@ func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (
 
 	_, err := s.userRepository.FindByEmail(ctx, input.Email)
 	if err == nil {
-		return nil, ErrUserAlreadyExists
+		return nil, apperrors.ErrUserAlreadyExists
 	}
-	if !errors.Is(err, repositories.ErrUserNotFound) {
+	if !errors.Is(err, apperrors.ErrUserNotFound) {
 		return nil, fmt.Errorf("check existing user: %w", err)
 	}
 
@@ -228,8 +219,8 @@ func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (
 	// Cognito failures must abort this operation so no local orphan is created.
 
 	if err := s.userRepository.Create(ctx, user, apartment); err != nil {
-		if errors.Is(err, repositories.ErrUserAlreadyExists) {
-			return nil, ErrUserAlreadyExists
+		if errors.Is(err, apperrors.ErrUserAlreadyExists) {
+			return nil, apperrors.ErrUserAlreadyExists
 		}
 		return nil, fmt.Errorf("create user: %w", err)
 	}

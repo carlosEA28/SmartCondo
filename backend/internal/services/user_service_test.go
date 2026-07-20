@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/carlosEA28/smartcondo/internal/apperrors"
 	"github.com/carlosEA28/smartcondo/internal/dto"
 	"github.com/carlosEA28/smartcondo/internal/models"
-	"github.com/carlosEA28/smartcondo/internal/repositories"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -71,12 +71,12 @@ func TestUserServiceGetUserReturnsUser(t *testing.T) {
 }
 
 func TestUserServiceGetUserReturnsNotFound(t *testing.T) {
-	repository := &fakeUserRepository{findByIDErr: repositories.ErrUserNotFound}
+	repository := &fakeUserRepository{findByIDErr: apperrors.ErrUserNotFound}
 	service := NewUserService(repository)
 
 	_, err := service.GetUser(context.Background(), uuid.New())
-	if !errors.Is(err, ErrUserNotFound) {
-		t.Fatalf("GetUser() error = %v, want %v", err, ErrUserNotFound)
+	if !errors.Is(err, apperrors.ErrUserNotFound) {
+		t.Fatalf("GetUser() error = %v, want %v", err, apperrors.ErrUserNotFound)
 	}
 }
 
@@ -97,7 +97,7 @@ func TestUserServiceListUsersReturnsUsers(t *testing.T) {
 }
 
 func TestUserServiceCreateUserCreatesResidentAndApartment(t *testing.T) {
-	repository := &fakeUserRepository{findByEmailErr: repositories.ErrUserNotFound}
+	repository := &fakeUserRepository{findByEmailErr: apperrors.ErrUserNotFound}
 	service := NewUserService(repository)
 	input := dto.CreateUserDTO{
 		FullName:    "  Maria Silva  ",
@@ -141,8 +141,8 @@ func TestUserServiceCreateUserRejectsDuplicateEmail(t *testing.T) {
 	service := NewUserService(repository)
 
 	_, err := service.CreateUser(context.Background(), validResidentInput())
-	if !errors.Is(err, ErrUserAlreadyExists) {
-		t.Fatalf("CreateUser() error = %v, want %v", err, ErrUserAlreadyExists)
+	if !errors.Is(err, apperrors.ErrUserAlreadyExists) {
+		t.Fatalf("CreateUser() error = %v, want %v", err, apperrors.ErrUserAlreadyExists)
 	}
 	if repository.createdUser != nil {
 		t.Fatal("CreateUser() persisted a duplicate user")
@@ -156,8 +156,8 @@ func TestUserServiceCreateUserRequiresApartmentForResident(t *testing.T) {
 	input.Apartment = nil
 
 	_, err := service.CreateUser(context.Background(), input)
-	if !errors.Is(err, ErrApartmentRequired) {
-		t.Fatalf("CreateUser() error = %v, want %v", err, ErrApartmentRequired)
+	if !errors.Is(err, apperrors.ErrApartmentRequired) {
+		t.Fatalf("CreateUser() error = %v, want %v", err, apperrors.ErrApartmentRequired)
 	}
 }
 

@@ -5,15 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/carlosEA28/smartcondo/internal/apperrors"
 	"github.com/carlosEA28/smartcondo/internal/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-)
-
-var (
-	ErrUserNotFound      = errors.New("user not found")
-	ErrUserAlreadyExists = errors.New("user already exists")
-	ErrUserInUse         = errors.New("user has related records")
 )
 
 type UserRepository interface {
@@ -37,7 +32,7 @@ func (r *GormUserRepository) FindByID(ctx context.Context, id uuid.UUID) (*model
 	var user models.User
 	if err := r.db.WithContext(ctx).Preload("Apartment").First(&user, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrUserNotFound
+			return nil, apperrors.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("find user by id: %w", err)
 	}
@@ -49,7 +44,7 @@ func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (*mo
 	var user models.User
 	if err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrUserNotFound
+			return nil, apperrors.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("find user by email: %w", err)
 	}
@@ -85,12 +80,12 @@ func (r *GormUserRepository) Update(ctx context.Context, user *models.User, apar
 		})
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
-				return ErrUserAlreadyExists
+				return apperrors.ErrUserAlreadyExists
 			}
 			return fmt.Errorf("update user: %w", result.Error)
 		}
 		if result.RowsAffected == 0 {
-			return ErrUserNotFound
+			return apperrors.ErrUserNotFound
 		}
 
 		return nil
@@ -106,12 +101,12 @@ func (r *GormUserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	result := r.db.WithContext(ctx).Delete(&models.User{}, "id = ?", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrForeignKeyViolated) {
-			return ErrUserInUse
+			return apperrors.ErrUserInUse
 		}
 		return fmt.Errorf("delete user: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return ErrUserNotFound
+		return apperrors.ErrUserNotFound
 	}
 
 	return nil
@@ -129,7 +124,7 @@ func (r *GormUserRepository) Create(ctx context.Context, user *models.User, apar
 
 		if err := tx.Omit("Apartment").Create(user).Error; err != nil {
 			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				return ErrUserAlreadyExists
+				return apperrors.ErrUserAlreadyExists
 			}
 			return fmt.Errorf("create user: %w", err)
 		}
