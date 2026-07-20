@@ -11,14 +11,16 @@ import (
 )
 
 type Server struct {
-	config *config.Config
-	db     *gorm.DB
+	config         *config.Config
+	db             *gorm.DB
+	userRepository *repositories.GormUserRepository
 }
 
-func New(cfg *config.Config, db *gorm.DB) *Server {
+func New(cfg *config.Config, db *gorm.DB, userRepository *repositories.GormUserRepository) *Server {
 	return &Server{
-		config: cfg,
-		db:     db,
+		config:         cfg,
+		db:             db,
+		userRepository: userRepository,
 	}
 }
 
