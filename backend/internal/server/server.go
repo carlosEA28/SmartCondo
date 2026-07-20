@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/carlosEA28/smartcondo/internal/config"
+	"github.com/carlosEA28/smartcondo/internal/repositories"
+	"github.com/carlosEA28/smartcondo/internal/services"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -29,6 +31,11 @@ func (s *Server) SetupRoutes() *gin.Engine {
 	router.Use(s.corsMiddleware())
 
 	router.GET("/health", s.healthCheck)
+
+	userRepository := repositories.NewGormUserRepository(s.db)
+	userService := services.NewUserService(userRepository)
+	userHandler := newUserHandler(userService)
+	router.POST("/users", userHandler.create)
 
 	return router
 }
