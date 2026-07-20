@@ -10,8 +10,8 @@ import (
 	"github.com/carlosEA28/smartcondo/internal/dto"
 	"github.com/carlosEA28/smartcondo/internal/models"
 	"github.com/carlosEA28/smartcondo/internal/repositories"
+	"github.com/carlosEA28/smartcondo/internal/utils"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type UserService struct {
@@ -83,9 +83,6 @@ func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (*dto.UserResponseDTO, error) {
-	input.FullName = strings.TrimSpace(input.FullName)
-	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
-	input.Phone = strings.TrimSpace(input.Phone)
 
 	if input.Apartment == nil {
 		return nil, apperrors.ErrApartmentRequired
@@ -104,9 +101,10 @@ func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (
 		return nil, fmt.Errorf("check existing user: %w", err)
 	}
 
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	passwordHash, err := utils.HashPassword(input.Password)
 	if err != nil {
 		return nil, fmt.Errorf("hash user password: %w", err)
+
 	}
 
 	user := &models.User{
