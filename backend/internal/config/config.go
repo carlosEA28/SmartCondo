@@ -27,11 +27,13 @@ type DatabaseConfig struct {
 }
 
 type AWSConfig struct {
-	Region          string
-	AccessKeyID     string
-	SecretAccessKey string
-	S3Bucket        string
-	S3Endpoint      string
+	Region              string
+	AccessKeyID         string
+	SecretAccessKey     string
+	S3Bucket            string
+	S3Endpoint          string
+	CognitoClientId     string
+	CognitoClientSecret string
 }
 
 type UploadConfig struct {
@@ -64,6 +66,8 @@ func Load() (*Config, error) {
 			SecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", "test"),
 			S3Bucket:        getEnv("AWS_S3_BUCKET", "bucket"),
 			S3Endpoint:      getEnv("AWS_S3_ENDPOINT", "http://localhost:4566"),
+			CognitoClientId:     getEnv("AWS_COGNITO_CLIENT_ID", "clientId"),
+			CognitoClientSecret: getEnv("AWS_COGNITO_CLIENT_SECRET", ""),
 		},
 	}, nil
 }
