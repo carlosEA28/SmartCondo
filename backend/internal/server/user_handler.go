@@ -12,7 +12,7 @@ import (
 )
 
 type userService interface {
-	CreateUser(ctx context.Context, input dto.CreateUserDTO) (*dto.UserResponseDTO, error)
+	CreateUser(ctx context.Context, input *dto.CreateUserDTO) (*dto.UserResponseDTO, error)
 	GetUser(ctx context.Context, id uuid.UUID) (*dto.UserResponseDTO, error)
 	ListUsers(ctx context.Context) ([]dto.UserResponseDTO, error)
 	UpdateUser(ctx context.Context, id uuid.UUID, input *dto.UpdateUserDTO) (*dto.UserResponseDTO, error)
@@ -109,7 +109,7 @@ func (h *userHandler) delete(c *gin.Context) {
 }
 
 func (h *userHandler) create(c *gin.Context) {
-	var input dto.CreateUserDTO
+	var input *dto.CreateUserDTO
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return

@@ -9,6 +9,7 @@ import (
 	"github.com/carlosEA28/smartcondo/internal/apperrors"
 	"github.com/carlosEA28/smartcondo/internal/dto"
 	"github.com/carlosEA28/smartcondo/internal/models"
+	providers "github.com/carlosEA28/smartcondo/internal/providers/aws"
 	"github.com/carlosEA28/smartcondo/internal/repositories"
 	"github.com/carlosEA28/smartcondo/internal/utils"
 	"github.com/google/uuid"
@@ -16,10 +17,11 @@ import (
 
 type UserService struct {
 	userRepository repositories.UserRepository
+	awsProvider    *providers.AwsProvider
 }
 
-func NewUserService(userRepository repositories.UserRepository) *UserService {
-	return &UserService{userRepository: userRepository}
+func NewUserService(userRepository repositories.UserRepository, awsProvider *providers.AwsProvider) *UserService {
+	return &UserService{userRepository: userRepository, awsProvider: awsProvider}
 }
 
 func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (*dto.UserResponseDTO, error) {
@@ -82,7 +84,20 @@ func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (*dto.UserResponseDTO, error) {
+func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) (*dto.UserResponseDTO, error) {
+
+	userExists, err := s.userRepository.FindByEmail(ctx, input.Email)
+	if err == nil && userExists.Email == input.Email {
+		return nil, apperrors.ErrUserAlreadyExists
+	}
+
+	s.awsProvider.CreateUser(ctx, input)
+
+	passwordHash, err := utils.HashPassword(input.Password)
+	if err != nil {
+		return nil, fmt.Errorf("hash user password: %w", err)
+
+	}
 
 	if input.Apartment == nil {
 		return nil, apperrors.ErrApartmentRequired
@@ -91,20 +106,6 @@ func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (
 		ID:     uuid.New(),
 		Number: input.Apartment.Number,
 		Block:  strings.TrimSpace(input.Apartment.Block),
-	}
-
-	_, err := s.userRepository.FindByEmail(ctx, input.Email)
-	if err == nil {
-		return nil, apperrors.ErrUserAlreadyExists
-	}
-	if !errors.Is(err, apperrors.ErrUserNotFound) {
-		return nil, fmt.Errorf("check existing user: %w", err)
-	}
-
-	passwordHash, err := utils.HashPassword(input.Password)
-	if err != nil {
-		return nil, fmt.Errorf("hash user password: %w", err)
-
 	}
 
 	user := &models.User{
@@ -119,9 +120,6 @@ func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (
 		Apartment:   apartment,
 	}
 	user.ApartmentID = &apartment.ID
-
-	// TODO: provision the user in Amazon Cognito here before persisting it.
-	// Cognito failures must abort this operation so no local orphan is created.
 
 	if err := s.userRepository.Create(ctx, user, apartment); err != nil {
 		if errors.Is(err, apperrors.ErrUserAlreadyExists) {

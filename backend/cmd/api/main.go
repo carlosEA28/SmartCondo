@@ -41,11 +41,9 @@ func main() {
 	gin.SetMode(cfg.Server.GinMode)
 
 	userRepository := repositories.NewGormUserRepository(db)
-
 	srv := server.New(cfg, db, userRepository)
 
 	router := srv.SetupRoutes()
-
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Server.Port),
 		Handler:      router,

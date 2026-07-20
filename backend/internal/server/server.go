@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/carlosEA28/smartcondo/internal/config"
+	providers "github.com/carlosEA28/smartcondo/internal/providers/aws"
 	"github.com/carlosEA28/smartcondo/internal/repositories"
 	"github.com/carlosEA28/smartcondo/internal/services"
 	"github.com/gin-gonic/gin"
@@ -13,10 +14,10 @@ import (
 type Server struct {
 	config         *config.Config
 	db             *gorm.DB
-	userRepository *repositories.GormUserRepository
+	userRepository repositories.UserRepository
 }
 
-func New(cfg *config.Config, db *gorm.DB, userRepository *repositories.GormUserRepository) *Server {
+func New(cfg *config.Config, db *gorm.DB, userRepository repositories.UserRepository) *Server {
 	return &Server{
 		config:         cfg,
 		db:             db,
@@ -34,8 +35,8 @@ func (s *Server) SetupRoutes() *gin.Engine {
 
 	router.GET("/health", s.healthCheck)
 
-	userRepository := repositories.NewGormUserRepository(s.db)
-	userService := services.NewUserService(userRepository)
+	awsProvider := providers.NewAwsProvider(s.config)
+	userService := services.NewUserService(s.userRepository, awsProvider)
 	userHandler := newUserHandler(userService)
 	router.POST("/users", userHandler.create)
 	router.GET("/users", userHandler.list)
