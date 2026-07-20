@@ -13,6 +13,7 @@ import (
 var (
 	ErrUserNotFound      = errors.New("user not found")
 	ErrUserAlreadyExists = errors.New("user already exists")
+	ErrUserInUse         = errors.New("user has related records")
 )
 
 type UserRepository interface {
@@ -21,6 +22,7 @@ type UserRepository interface {
 	List(ctx context.Context) ([]models.User, error)
 	Create(ctx context.Context, user *models.User, apartment *models.Apartment) error
 	Update(ctx context.Context, user *models.User, apartment *models.Apartment) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type GormUserRepository struct {
@@ -95,6 +97,21 @@ func (r *GormUserRepository) Update(ctx context.Context, user *models.User, apar
 	})
 	if err != nil {
 		return fmt.Errorf("update user transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (r *GormUserRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	result := r.db.WithContext(ctx).Delete(&models.User{}, "id = ?", id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrForeignKeyViolated) {
+			return ErrUserInUse
+		}
+		return fmt.Errorf("delete user: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrUserNotFound
 	}
 
 	return nil

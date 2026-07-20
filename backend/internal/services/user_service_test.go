@@ -46,6 +46,10 @@ func (f *fakeUserRepository) Update(context.Context, *models.User, *models.Apart
 	return nil
 }
 
+func (f *fakeUserRepository) Delete(context.Context, uuid.UUID) error {
+	return nil
+}
+
 func TestUserServiceGetUserReturnsUser(t *testing.T) {
 	id := uuid.New()
 	repository := &fakeUserRepository{findByIDResult: &models.User{

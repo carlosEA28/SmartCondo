@@ -20,6 +20,7 @@ var (
 	ErrApartmentNotAllowed   = errors.New("apartment is only allowed for residents")
 	ErrResponsibleNotAllowed = errors.New("only residents can be responsible for an apartment")
 	ErrInvalidUserData       = errors.New("invalid user data")
+	ErrUserInUse             = errors.New("user has related records")
 )
 
 type UserService struct {
@@ -166,6 +167,21 @@ func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, input dto.Up
 	}
 
 	return userToResponse(user), nil
+}
+
+func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	if err := s.userRepository.Delete(ctx, id); err != nil {
+		switch {
+		case errors.Is(err, repositories.ErrUserNotFound):
+			return ErrUserNotFound
+		case errors.Is(err, repositories.ErrUserInUse):
+			return ErrUserInUse
+		default:
+			return fmt.Errorf("delete user: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (*dto.UserResponseDTO, error) {

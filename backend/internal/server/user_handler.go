@@ -16,6 +16,7 @@ type userService interface {
 	GetUser(ctx context.Context, id uuid.UUID) (*dto.UserResponseDTO, error)
 	ListUsers(ctx context.Context) ([]dto.UserResponseDTO, error)
 	UpdateUser(ctx context.Context, id uuid.UUID, input dto.UpdateUserDTO) (*dto.UserResponseDTO, error)
+	DeleteUser(ctx context.Context, id uuid.UUID) error
 }
 
 type userHandler struct {
@@ -88,6 +89,28 @@ func (h *userHandler) update(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, user)
+}
+
+func (h *userHandler) delete(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	if err := h.service.DeleteUser(c.Request.Context(), id); err != nil {
+		switch {
+		case errors.Is(err, services.ErrUserNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		case errors.Is(err, services.ErrUserInUse):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
+		}
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 func (h *userHandler) create(c *gin.Context) {

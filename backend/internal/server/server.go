@@ -39,6 +39,7 @@ func (s *Server) SetupRoutes() *gin.Engine {
 	router.GET("/users", userHandler.list)
 	router.GET("/users/:id", userHandler.getByID)
 	router.PUT("/users/:id", userHandler.update)
+	router.DELETE("/users/:id", userHandler.delete)
 
 	return router
 }
