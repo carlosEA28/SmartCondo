@@ -24,6 +24,7 @@
 - do not execute any migration up or down without approvence
 - do not commit changes before my review
 - do not create any other folder or file unless i approve
+- do not create unit tests after implementing a feature
 
 ## Project Structure
 - `cmd/api/main.go` — Main file of the application, where everything its loaded an the run the app

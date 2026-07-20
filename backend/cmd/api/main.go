@@ -13,6 +13,7 @@ import (
 	"github.com/carlosEA28/smartcondo/internal/config"
 	"github.com/carlosEA28/smartcondo/internal/database"
 	"github.com/carlosEA28/smartcondo/internal/logger"
+	"github.com/carlosEA28/smartcondo/internal/repositories"
 	"github.com/carlosEA28/smartcondo/internal/server"
 	"github.com/gin-gonic/gin"
 )
@@ -33,18 +34,16 @@ func main() {
 	}
 
 	mainDB, err := db.DB()
-
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to get database connection")
 	}
-
 	defer mainDB.Close()
 	gin.SetMode(cfg.Server.GinMode)
 
-	srv := server.New(cfg, db)
+	userRepository := repositories.NewGormUserRepository(db)
+	srv := server.New(cfg, db, userRepository)
 
 	router := srv.SetupRoutes()
-
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Server.Port),
 		Handler:      router,
