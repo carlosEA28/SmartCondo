@@ -8,25 +8,84 @@ import (
 	"github.com/carlosEA28/smartcondo/internal/dto"
 	"github.com/carlosEA28/smartcondo/internal/models"
 	"github.com/carlosEA28/smartcondo/internal/repositories"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type fakeUserRepository struct {
+	findByIDResult    *models.User
+	findByIDErr       error
 	findByEmailResult *models.User
 	findByEmailErr    error
+	listResult        []models.User
+	listErr           error
 	createdUser       *models.User
 	createdApartment  *models.Apartment
 	createErr         error
+}
+
+func (f *fakeUserRepository) FindByID(context.Context, uuid.UUID) (*models.User, error) {
+	return f.findByIDResult, f.findByIDErr
 }
 
 func (f *fakeUserRepository) FindByEmail(context.Context, string) (*models.User, error) {
 	return f.findByEmailResult, f.findByEmailErr
 }
 
+func (f *fakeUserRepository) List(context.Context) ([]models.User, error) {
+	return f.listResult, f.listErr
+}
+
 func (f *fakeUserRepository) Create(_ context.Context, user *models.User, apartment *models.Apartment) error {
 	f.createdUser = user
 	f.createdApartment = apartment
 	return f.createErr
+}
+
+func TestUserServiceGetUserReturnsUser(t *testing.T) {
+	id := uuid.New()
+	repository := &fakeUserRepository{findByIDResult: &models.User{
+		ID:       id,
+		FullName: "Maria Silva",
+		Email:    "maria@example.com",
+		Status:   models.UserStatusActive,
+		Role:     models.RoleMorador,
+	}}
+	service := NewUserService(repository)
+
+	response, err := service.GetUser(context.Background(), id)
+	if err != nil {
+		t.Fatalf("GetUser() error = %v", err)
+	}
+	if response.ID != id || response.Email != repository.findByIDResult.Email {
+		t.Fatalf("GetUser() response = %#v", response)
+	}
+}
+
+func TestUserServiceGetUserReturnsNotFound(t *testing.T) {
+	repository := &fakeUserRepository{findByIDErr: repositories.ErrUserNotFound}
+	service := NewUserService(repository)
+
+	_, err := service.GetUser(context.Background(), uuid.New())
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("GetUser() error = %v, want %v", err, ErrUserNotFound)
+	}
+}
+
+func TestUserServiceListUsersReturnsUsers(t *testing.T) {
+	repository := &fakeUserRepository{listResult: []models.User{
+		{ID: uuid.New(), FullName: "Maria Silva", Role: models.RoleMorador},
+		{ID: uuid.New(), FullName: "João Souza", Role: models.RolePorteiro},
+	}}
+	service := NewUserService(repository)
+
+	response, err := service.ListUsers(context.Background())
+	if err != nil {
+		t.Fatalf("ListUsers() error = %v", err)
+	}
+	if len(response) != len(repository.listResult) {
+		t.Fatalf("ListUsers() length = %d, want %d", len(response), len(repository.listResult))
+	}
 }
 
 func TestUserServiceCreateUserCreatesResidentAndApartment(t *testing.T) {

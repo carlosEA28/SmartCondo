@@ -8,18 +8,51 @@ import (
 	"github.com/carlosEA28/smartcondo/internal/dto"
 	"github.com/carlosEA28/smartcondo/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
-type userCreator interface {
+type userService interface {
 	CreateUser(ctx context.Context, input dto.CreateUserDTO) (*dto.UserResponseDTO, error)
+	GetUser(ctx context.Context, id uuid.UUID) (*dto.UserResponseDTO, error)
+	ListUsers(ctx context.Context) ([]dto.UserResponseDTO, error)
 }
 
 type userHandler struct {
-	service userCreator
+	service userService
 }
 
-func newUserHandler(service userCreator) *userHandler {
+func newUserHandler(service userService) *userHandler {
 	return &userHandler{service: service}
+}
+
+func (h *userHandler) getByID(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	user, err := h.service.GetUser(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, services.ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+func (h *userHandler) list(c *gin.Context) {
+	users, err := h.service.ListUsers(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list users"})
+		return
+	}
+
+	c.JSON(http.StatusOK, users)
 }
 
 func (h *userHandler) create(c *gin.Context) {

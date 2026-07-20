@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	ErrUserNotFound          = errors.New("user not found")
 	ErrUserAlreadyExists     = errors.New("user already exists")
 	ErrApartmentRequired     = errors.New("apartment is required for residents")
 	ErrApartmentNotAllowed   = errors.New("apartment is only allowed for residents")
@@ -26,6 +27,32 @@ type UserService struct {
 
 func NewUserService(userRepository repositories.UserRepository) *UserService {
 	return &UserService{userRepository: userRepository}
+}
+
+func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (*dto.UserResponseDTO, error) {
+	user, err := s.userRepository.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, repositories.ErrUserNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+
+	return userToResponse(user), nil
+}
+
+func (s *UserService) ListUsers(ctx context.Context) ([]dto.UserResponseDTO, error) {
+	users, err := s.userRepository.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+
+	response := make([]dto.UserResponseDTO, 0, len(users))
+	for index := range users {
+		response = append(response, *userToResponse(&users[index]))
+	}
+
+	return response, nil
 }
 
 func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (*dto.UserResponseDTO, error) {

@@ -36,6 +36,8 @@ func (s *Server) SetupRoutes() *gin.Engine {
 	userService := services.NewUserService(userRepository)
 	userHandler := newUserHandler(userService)
 	router.POST("/users", userHandler.create)
+	router.GET("/users", userHandler.list)
+	router.GET("/users/:id", userHandler.getByID)
 
 	return router
 }

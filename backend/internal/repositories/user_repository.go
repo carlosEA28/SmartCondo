@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/carlosEA28/smartcondo/internal/models"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -15,7 +16,9 @@ var (
 )
 
 type UserRepository interface {
+	FindByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
+	List(ctx context.Context) ([]models.User, error)
 	Create(ctx context.Context, user *models.User, apartment *models.Apartment) error
 }
 
@@ -25,6 +28,18 @@ type GormUserRepository struct {
 
 func NewGormUserRepository(db *gorm.DB) *GormUserRepository {
 	return &GormUserRepository{db: db}
+}
+
+func (r *GormUserRepository) FindByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	var user models.User
+	if err := r.db.WithContext(ctx).Preload("Apartment").First(&user, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("find user by id: %w", err)
+	}
+
+	return &user, nil
 }
 
 func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
@@ -37,6 +52,15 @@ func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (*mo
 	}
 
 	return &user, nil
+}
+
+func (r *GormUserRepository) List(ctx context.Context) ([]models.User, error) {
+	users := make([]models.User, 0)
+	if err := r.db.WithContext(ctx).Preload("Apartment").Order("nome ASC").Find(&users).Error; err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+
+	return users, nil
 }
 
 func (r *GormUserRepository) Create(ctx context.Context, user *models.User, apartment *models.Apartment) error {
