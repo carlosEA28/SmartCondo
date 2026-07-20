@@ -20,6 +20,7 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
 	List(ctx context.Context) ([]models.User, error)
 	Create(ctx context.Context, user *models.User, apartment *models.Apartment) error
+	Update(ctx context.Context, user *models.User, apartment *models.Apartment) error
 }
 
 type GormUserRepository struct {
@@ -61,6 +62,42 @@ func (r *GormUserRepository) List(ctx context.Context) ([]models.User, error) {
 	}
 
 	return users, nil
+}
+
+func (r *GormUserRepository) Update(ctx context.Context, user *models.User, apartment *models.Apartment) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if apartment != nil {
+			if err := tx.Save(apartment).Error; err != nil {
+				return fmt.Errorf("update apartment: %w", err)
+			}
+		}
+
+		result := tx.Model(&models.User{}).Where("id = ?", user.ID).Updates(map[string]any{
+			"nome":           user.FullName,
+			"email":          user.Email,
+			"telefone":       user.Phone,
+			"status":         user.Status,
+			"tipo":           user.Role,
+			"apartamento_id": user.ApartmentID,
+			"responsavel":    user.Responsible,
+		})
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
+				return ErrUserAlreadyExists
+			}
+			return fmt.Errorf("update user: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrUserNotFound
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("update user transaction: %w", err)
+	}
+
+	return nil
 }
 
 func (r *GormUserRepository) Create(ctx context.Context, user *models.User, apartment *models.Apartment) error {

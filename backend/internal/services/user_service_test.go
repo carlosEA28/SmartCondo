@@ -42,6 +42,10 @@ func (f *fakeUserRepository) Create(_ context.Context, user *models.User, apartm
 	return f.createErr
 }
 
+func (f *fakeUserRepository) Update(context.Context, *models.User, *models.Apartment) error {
+	return nil
+}
+
 func TestUserServiceGetUserReturnsUser(t *testing.T) {
 	id := uuid.New()
 	repository := &fakeUserRepository{findByIDResult: &models.User{
