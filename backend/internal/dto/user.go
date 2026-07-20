@@ -13,8 +13,7 @@ type CreateUserDTO struct {
 	Password    string              `json:"password" binding:"required,min=8,max=72"`
 	Phone       string              `json:"phone" binding:"required,max=15"`
 	Responsible bool                `json:"responsible"`
-	Role        string              `json:"role" binding:"required,oneof=MORADOR PORTEIRO SINDICO"`
-	Apartment   *CreateApartmentDTO `json:"apartment"`
+	Apartment   *CreateApartmentDTO `json:"apartment" binding:"required"`
 }
 
 type UpdateApartmentDTO struct {

@@ -105,7 +105,6 @@ func TestUserServiceCreateUserCreatesResidentAndApartment(t *testing.T) {
 		Password:    "password123",
 		Phone:       " 11999999999 ",
 		Responsible: true,
-		Role:        string(models.RoleMorador),
 		Apartment: &dto.CreateApartmentDTO{
 			Number: 101,
 			Block:  " A ",
@@ -168,7 +167,6 @@ func validResidentInput() dto.CreateUserDTO {
 		Email:    "maria@example.com",
 		Password: "password123",
 		Phone:    "11999999999",
-		Role:     string(models.RoleMorador),
 		Apartment: &dto.CreateApartmentDTO{
 			Number: 101,
 			Block:  "A",

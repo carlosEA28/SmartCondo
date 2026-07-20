@@ -189,27 +189,13 @@ func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
 	input.Phone = strings.TrimSpace(input.Phone)
 
-	role := models.Role(input.Role)
-	var apartment *models.Apartment
-	switch role {
-	case models.RoleMorador:
-		if input.Apartment == nil {
-			return nil, ErrApartmentRequired
-		}
-		apartment = &models.Apartment{
-			ID:     uuid.New(),
-			Number: input.Apartment.Number,
-			Block:  strings.TrimSpace(input.Apartment.Block),
-		}
-	case models.RolePorteiro, models.RoleSindico:
-		if input.Apartment != nil {
-			return nil, ErrApartmentNotAllowed
-		}
-		if input.Responsible {
-			return nil, ErrResponsibleNotAllowed
-		}
-	default:
-		return nil, fmt.Errorf("invalid user role: %s", input.Role)
+	if input.Apartment == nil {
+		return nil, ErrApartmentRequired
+	}
+	apartment := &models.Apartment{
+		ID:     uuid.New(),
+		Number: input.Apartment.Number,
+		Block:  strings.TrimSpace(input.Apartment.Block),
 	}
 
 	_, err := s.userRepository.FindByEmail(ctx, input.Email)
@@ -232,13 +218,11 @@ func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserDTO) (
 		Password:    string(passwordHash),
 		Phone:       input.Phone,
 		Status:      models.UserStatusActive,
-		Role:        role,
+		Role:        models.RoleMorador,
 		Responsible: input.Responsible,
 		Apartment:   apartment,
 	}
-	if apartment != nil {
-		user.ApartmentID = &apartment.ID
-	}
+	user.ApartmentID = &apartment.ID
 
 	// TODO: provision the user in Amazon Cognito here before persisting it.
 	// Cognito failures must abort this operation so no local orphan is created.
