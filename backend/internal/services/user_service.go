@@ -19,7 +19,7 @@ type CognitoProvider interface {
 }
 
 type UserService struct {
-	userRepository repositories.UserRepository
+	userRepository  repositories.UserRepository
 	cognitoProvider CognitoProvider
 }
 
@@ -154,4 +154,5 @@ func userToResponse(user *models.User) *dto.UserResponseDTO {
 	}
 
 	return response
+
 }
