@@ -9,19 +9,22 @@ import (
 	"github.com/carlosEA28/smartcondo/internal/apperrors"
 	"github.com/carlosEA28/smartcondo/internal/dto"
 	"github.com/carlosEA28/smartcondo/internal/models"
-	providers "github.com/carlosEA28/smartcondo/internal/providers/aws"
 	"github.com/carlosEA28/smartcondo/internal/repositories"
 	"github.com/carlosEA28/smartcondo/internal/utils"
 	"github.com/google/uuid"
 )
 
-type UserService struct {
-	userRepository repositories.UserRepository
-	awsProvider    *providers.AwsProvider
+type CognitoProvider interface {
+	CreateUser(ctx context.Context, user *dto.CreateUserDTO) (bool, error)
 }
 
-func NewUserService(userRepository repositories.UserRepository, awsProvider *providers.AwsProvider) *UserService {
-	return &UserService{userRepository: userRepository, awsProvider: awsProvider}
+type UserService struct {
+	userRepository repositories.UserRepository
+	cognitoProvider CognitoProvider
+}
+
+func NewUserService(userRepository repositories.UserRepository, cognitoProvider CognitoProvider) *UserService {
+	return &UserService{userRepository: userRepository, cognitoProvider: cognitoProvider}
 }
 
 func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (*dto.UserResponseDTO, error) {
@@ -91,7 +94,7 @@ func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) 
 		return nil, apperrors.ErrUserAlreadyExists
 	}
 
-	s.awsProvider.CreateUser(ctx, input)
+	s.cognitoProvider.CreateUser(ctx, input)
 
 	passwordHash, err := utils.HashPassword(input.Password)
 	if err != nil {

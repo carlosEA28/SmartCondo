@@ -15,7 +15,7 @@ type S3Interface interface {
 }
 
 type CognitoInterface interface {
-	CreateUser(ctx context.Context, user *dto.CreateUserDTO) (string, error)
+	CreateUser(ctx context.Context, user *dto.CreateUserDTO) (bool, error)
 	DeleteUser(ctx context.Context, userID string) error
 	GetUser(ctx context.Context, userID string) (*dto.RegisterRequest, error)
 	GetUserList(ctx context.Context) ([]*dto.RegisterRequest, error)
