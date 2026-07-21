@@ -13,17 +13,19 @@ import (
 )
 
 type fakeUserRepository struct {
-	findByIDResult    *models.User
-	findByIDErr       error
-	findByEmailResult *models.User
-	findByEmailErr    error
-	listResult        []models.User
-	listErr           error
-	createdUser       *models.User
-	createdApartment  *models.Apartment
-	createErr         error
-	saveErr           error
-	deleteErr         error
+	findByIDResult      *models.User
+	findByIDErr         error
+	findByEmailResult   *models.User
+	findByEmailErr      error
+	findApartmentResult *models.Apartment
+	findApartmentErr    error
+	listResult          []models.User
+	listErr             error
+	createdUser         *models.User
+	createdApartment    *models.Apartment
+	createErr           error
+	saveErr             error
+	deleteErr           error
 }
 
 func (f *fakeUserRepository) FindByID(context.Context, uuid.UUID) (*models.User, error) {
@@ -32,6 +34,10 @@ func (f *fakeUserRepository) FindByID(context.Context, uuid.UUID) (*models.User,
 
 func (f *fakeUserRepository) FindByEmail(context.Context, string) (*models.User, error) {
 	return f.findByEmailResult, f.findByEmailErr
+}
+
+func (f *fakeUserRepository) FindApartmentByNumberAndBlock(context.Context, int, string) (*models.Apartment, error) {
+	return f.findApartmentResult, f.findApartmentErr
 }
 
 func (f *fakeUserRepository) List(context.Context) ([]models.User, error) {

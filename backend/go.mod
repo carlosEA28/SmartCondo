@@ -18,6 +18,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.31 // indirect
+	github.com/nyaruka/phonenumbers/v2 v2.0.5 // indirect
 )
 
 require (
@@ -70,5 +71,5 @@ require (
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )

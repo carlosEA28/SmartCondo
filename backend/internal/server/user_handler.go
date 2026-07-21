@@ -120,6 +120,8 @@ func (h *userHandler) create(c *gin.Context) {
 		switch {
 		case errors.Is(err, apperrors.ErrUserAlreadyExists):
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		case errors.Is(err, apperrors.ErrApartmentAlreadyExists):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		case errors.Is(err, apperrors.ErrApartmentRequired):
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		default:

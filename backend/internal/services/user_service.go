@@ -12,10 +12,12 @@ import (
 	"github.com/carlosEA28/smartcondo/internal/repositories"
 	"github.com/carlosEA28/smartcondo/internal/utils"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 type CognitoProvider interface {
 	CreateUser(ctx context.Context, user *dto.CreateUserDTO) (bool, error)
+	DeleteUser(ctx context.Context, email string) error
 }
 
 type UserService struct {
@@ -73,6 +75,16 @@ func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, input *dto.U
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	user, err := s.userRepository.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrUserNotFound) {
+			return apperrors.ErrUserNotFound
+		}
+		return fmt.Errorf("find user: %w", err)
+	}
+
+	_ = s.cognitoProvider.DeleteUser(ctx, user.Email)
+
 	if err := s.userRepository.Delete(ctx, id); err != nil {
 		switch {
 		case errors.Is(err, apperrors.ErrUserNotFound):
@@ -88,41 +100,45 @@ func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) (*dto.UserResponseDTO, error) {
-
 	userExists, err := s.userRepository.FindByEmail(ctx, input.Email)
-	if err == nil && userExists.Email == input.Email {
+	if err == nil && userExists != nil {
 		return nil, apperrors.ErrUserAlreadyExists
 	}
-
-	s.cognitoProvider.CreateUser(ctx, input)
-
-	passwordHash, err := utils.HashPassword(input.Password)
-	if err != nil {
-		return nil, fmt.Errorf("hash user password: %w", err)
-
+	if err != nil && !errors.Is(err, apperrors.ErrUserNotFound) {
+		return nil, fmt.Errorf("check user email: %w", err)
 	}
 
 	if input.Apartment == nil {
 		return nil, apperrors.ErrApartmentRequired
 	}
+
+	apartmentBlock := strings.TrimSpace(input.Apartment.Block)
+	existingApartment, err := s.userRepository.FindApartmentByNumberAndBlock(ctx, input.Apartment.Number, apartmentBlock)
+	if err == nil && existingApartment != nil {
+		return nil, apperrors.ErrApartmentAlreadyExists
+	}
+	if err != nil && !errors.Is(err, apperrors.ErrApartmentNotFound) {
+		return nil, fmt.Errorf("check apartment: %w", err)
+	}
+
+	passwordHash, err := utils.HashPassword(input.Password)
+	if err != nil {
+		return nil, fmt.Errorf("hash user password: %w", err)
+	}
+
 	apartment := &models.Apartment{
 		ID:     uuid.New(),
 		Number: input.Apartment.Number,
-		Block:  strings.TrimSpace(input.Apartment.Block),
+		Block:  apartmentBlock,
 	}
 
-	user := &models.User{
-		ID:          uuid.New(),
-		FullName:    input.FullName,
-		Email:       input.Email,
-		Password:    string(passwordHash),
-		Phone:       input.Phone,
-		Status:      models.UserStatusActive,
-		Role:        models.RoleMorador,
-		Responsible: input.Responsible,
-		Apartment:   apartment,
+	validNumber, err := utils.ValidatePhoneNumber(input.Phone)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to validate phone number")
+		return nil, err
 	}
-	user.ApartmentID = &apartment.ID
+
+	user := buildUser(input, apartment, passwordHash, validNumber)
 
 	if err := s.userRepository.Create(ctx, user, apartment); err != nil {
 		if errors.Is(err, apperrors.ErrUserAlreadyExists) {
@@ -131,7 +147,28 @@ func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) 
 		return nil, fmt.Errorf("create user: %w", err)
 	}
 
+	if _, err := s.cognitoProvider.CreateUser(ctx, input); err != nil {
+		log.Error().Err(err).Msg("failed to create cognito user")
+	}
+
 	return userToResponse(user), nil
+}
+
+func buildUser(input *dto.CreateUserDTO, apartment *models.Apartment, passwordHash string, phone string) *models.User {
+	user := &models.User{
+		ID:          uuid.New(),
+		FullName:    input.FullName,
+		Email:       input.Email,
+		Password:    passwordHash,
+		Phone:       phone,
+		Status:      models.UserStatusActive,
+		Role:        models.RoleMorador,
+		Responsible: input.Responsible,
+		Apartment:   apartment,
+	}
+	user.ApartmentID = &apartment.ID
+
+	return user
 }
 
 func userToResponse(user *models.User) *dto.UserResponseDTO {

@@ -34,6 +34,7 @@ type AWSConfig struct {
 	S3Endpoint          string
 	CognitoClientId     string
 	CognitoClientSecret string
+	CognitoUserPoolID   string
 }
 
 type UploadConfig struct {
@@ -68,6 +69,7 @@ func Load() (*Config, error) {
 			S3Endpoint:      getEnv("AWS_S3_ENDPOINT", "http://localhost:4566"),
 			CognitoClientId:     getEnv("AWS_COGNITO_CLIENT_ID", "clientId"),
 			CognitoClientSecret: getEnv("AWS_COGNITO_CLIENT_SECRET", ""),
+			CognitoUserPoolID:   getEnv("AWS_COGNITO_USER_POOL_ID", ""),
 		},
 	}, nil
 }
