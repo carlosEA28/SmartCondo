@@ -12,6 +12,7 @@ import (
 	"github.com/carlosEA28/smartcondo/internal/repositories"
 	"github.com/carlosEA28/smartcondo/internal/utils"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 type CognitoProvider interface {
@@ -94,8 +95,6 @@ func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) 
 		return nil, apperrors.ErrUserAlreadyExists
 	}
 
-	s.cognitoProvider.CreateUser(ctx, input)
-
 	passwordHash, err := utils.HashPassword(input.Password)
 	if err != nil {
 		return nil, fmt.Errorf("hash user password: %w", err)
@@ -113,17 +112,16 @@ func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) 
 
 	validNumber, err := utils.ValidatePhoneNumber(input.Phone)
 	if err != nil {
+		log.Error().Err(err).Msg("failed to validate phone number")
 		return nil, err
 	}
-
-	fmt.Println("TESTE NUMERO AQUI" + validNumber)
 
 	user := &models.User{
 		ID:          uuid.New(),
 		FullName:    input.FullName,
 		Email:       input.Email,
 		Password:    string(passwordHash),
-		Phone:       input.Phone,
+		Phone:       validNumber,
 		Status:      models.UserStatusActive,
 		Role:        models.RoleMorador,
 		Responsible: input.Responsible,
@@ -135,8 +133,15 @@ func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) 
 		if errors.Is(err, apperrors.ErrUserAlreadyExists) {
 			return nil, apperrors.ErrUserAlreadyExists
 		}
+
+		if err != nil {
+			return nil, err
+		}
+
 		return nil, fmt.Errorf("create user: %w", err)
 	}
+
+	s.cognitoProvider.CreateUser(ctx, input)
 
 	return userToResponse(user), nil
 }
