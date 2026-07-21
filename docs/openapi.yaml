@@ -1,0 +1,573 @@
+openapi: "3.1.0"
+info:
+  title: SmartCondo API
+  description: |
+    API do sistema SmartCondo para gestão de condomínios.
+
+    Atualmente implementa o CRUD de usuários (moradores) com vínculo a apartamentos.
+    A autenticação via AWS Cognito está预备ada mas ainda não exposta como endpoint.
+
+    ## Ambiente
+
+    - **Base URL (dev):** `http://localhost:8080`
+    - **Formato:** JSON
+    - **Autenticação:** Nenhuma (rotas públicas)
+  version: "1.0.0"
+  contact:
+    name: SmartCondo Team
+  servers:
+    - url: http://localhost:8080
+      description: Servidor de desenvolvimento local
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: |
+        Verifica se o servidor está ativo e respondendo.
+        Usado por balanceadores de carga e sistemas de monitoramento.
+      tags:
+        - Health
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Servidor está operacional
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+
+  /users:
+    post:
+      summary: Criar Usuário
+      description: |
+        Cria um novo morador com vínculo a um apartamento.
+
+        **Fluxo:**
+        1. Valida se o email já está cadastrado
+        2. Valida se o apartamento (número + bloco) já está cadastrado
+        3. Hash da senha com bcrypt
+        4. Valida e formata o telefone (formato brasileiro)
+        5. Cria usuário e apartamento em uma transação atômica
+        6. Tenta cadastrar no AWS Cognito (falha não crítica)
+
+        O usuário é criado com:
+        - `role`: MORADOR
+        - `status`: ATIVO
+      tags:
+        - Usuários
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+            example:
+              full_name: Maria Silva
+              email: maria@example.com
+              password: password123
+              phone: "11999999999"
+              responsible: false
+              apartment:
+                number: 101
+                block: "A"
+      responses:
+        "201":
+          description: Usuário criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+              example:
+                id: f47ac10b-58cc-4372-a567-0e02b2c3d479
+                full_name: Maria Silva
+                email: maria@example.com
+                phone: "(11) 99999-9999"
+                status: ATIVO
+                role: MORADOR
+                responsible: false
+                apartment:
+                  id: 550e8400-e29b-41d4-a716-446655440000
+                  number: 101
+                  block: "A"
+        "400":
+          description: Requisição mal formatada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid request body
+        "409":
+          description: Conflito — email ou apartamento já existente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                emailConflict:
+                  summary: Email já cadastrado
+                  value:
+                    error: user already exists
+                apartmentConflict:
+                  summary: Apartamento já cadastrado
+                  value:
+                    error: apartment already registered
+        "422":
+          description: Dados inválidos — apartamento não informado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: apartment is required for residents
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to create user
+
+    get:
+      summary: Listar Usuários
+      description: |
+        Retorna todos os usuários cadastrados, ordenados por nome (ordem alfabética ASC).
+        Inclui os dados do apartamento quando existente.
+      tags:
+        - Usuários
+      operationId: listUsers
+      responses:
+        "200":
+          description: Lista de usuários
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserResponse"
+              example:
+                - id: f47ac10b-58cc-4372-a567-0e02b2c3d479
+                  full_name: Maria Silva
+                  email: maria@example.com
+                  phone: "(11) 99999-9999"
+                  status: ATIVO
+                  role: MORADOR
+                  responsible: false
+                  apartment:
+                    id: 550e8400-e29b-41d4-a716-446655440000
+                    number: 101
+                    block: "A"
+                - id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                  full_name: João Santos
+                  email: joao@example.com
+                  phone: "(11) 97777-7777"
+                  status: ATIVO
+                  role: MORADOR
+                  responsible: true
+                  apartment:
+                    id: 6b8f0e2a-d270-4fa8-8e3a-8c0f8c3f2b1a
+                    number: 102
+                    block: "A"
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to list users
+
+  /users/{id}:
+    get:
+      summary: Obter Usuário por ID
+      description: Retorna os dados de um usuário específico pelo seu UUID.
+      tags:
+        - Usuários
+      operationId: getUserByID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do usuário
+          schema:
+            type: string
+            format: uuid
+            example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+      responses:
+        "200":
+          description: Dados do usuário
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+              example:
+                id: f47ac10b-58cc-4372-a567-0e02b2c3d479
+                full_name: Maria Silva
+                email: maria@example.com
+                phone: "(11) 99999-9999"
+                status: ATIVO
+                role: MORADOR
+                responsible: false
+                apartment:
+                  id: 550e8400-e29b-41d4-a716-446655440000
+                  number: 101
+                  block: "A"
+        "400":
+          description: UUID inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid user id
+        "404":
+          description: Usuário não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: user not found
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to get user
+
+    put:
+      summary: Atualizar Usuário
+      description: |
+        Atualiza o nome completo e/ou telefone de um usuário existente.
+
+        **Validações:**
+        - Nome e telefone não podem ficar vazios após remoção de espaços
+        - Nome: máximo 100 caracteres
+        - Telefone: máximo 15 caracteres
+      tags:
+        - Usuários
+      operationId: updateUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do usuário
+          schema:
+            type: string
+            format: uuid
+            example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+            example:
+              full_name: Maria Santos
+              phone: "11888888888"
+      responses:
+        "200":
+          description: Usuário atualizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+              example:
+                id: f47ac10b-58cc-4372-a567-0e02b2c3d479
+                full_name: Maria Santos
+                email: maria@example.com
+                phone: "(11) 88888-8888"
+                status: ATIVO
+                role: MORADOR
+                responsible: false
+                apartment:
+                  id: 550e8400-e29b-41d4-a716-446655440000
+                  number: 101
+                  block: "A"
+        "400":
+          description: UUID inválido ou corpo da requisição mal formatado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidID:
+                  summary: UUID inválido
+                  value:
+                    error: invalid user id
+                invalidBody:
+                  summary: JSON inválido
+                  value:
+                    error: invalid request body
+        "404":
+          description: Usuário não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: user not found
+        "422":
+          description: Nome ou telefone vazio após trim
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid user data
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to update user
+
+    delete:
+      summary: Excluir Usuário
+      description: |
+        Remove um usuário do sistema.
+
+        **Fluxo:**
+        1. Busca o usuário pelo ID
+        2. Tenta excluir do AWS Cognito (falha não crítica)
+        3. Exclui o registro no banco de dados
+
+        **Restrições:**
+        - Não é possível excluir um usuário que possui registros associados
+          (visitas, reservas, pagamentos, comunicados, notificações)
+      tags:
+        - Usuários
+      operationId: deleteUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do usuário
+          schema:
+            type: string
+            format: uuid
+            example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+      responses:
+        "204":
+          description: Usuário excluído com sucesso (sem corpo na resposta)
+        "400":
+          description: UUID inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid user id
+        "404":
+          description: Usuário não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: user not found
+        "409":
+          description: Usuário possui registros associados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: user has related records
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to delete user
+
+components:
+  schemas:
+    # ─── Errors ──────────────────────────────────────
+    ErrorResponse:
+      type: object
+      description: Resposta padrão para erros
+      properties:
+        error:
+          type: string
+          description: Mensagem descritiva do erro
+      required:
+        - error
+
+    # ─── Health ──────────────────────────────────────
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          description: Status do servidor
+      required:
+        - status
+
+    # ─── Apartment (Request) ─────────────────────────
+    CreateApartmentRequest:
+      type: object
+      description: Dados do apartamento para criação
+      properties:
+        number:
+          type: integer
+          description: Número do apartamento
+          minimum: 1
+          example: 101
+        block:
+          type: string
+          description: Bloco do apartamento
+          maxLength: 10
+          example: "A"
+      required:
+        - number
+        - block
+
+    # ─── Apartment (Response) ────────────────────────
+    ApartmentResponse:
+      type: object
+      description: Dados do apartamento na resposta
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID do apartamento
+          example: 550e8400-e29b-41d4-a716-446655440000
+        number:
+          type: integer
+          description: Número do apartamento
+          example: 101
+        block:
+          type: string
+          description: Bloco do apartamento
+          example: "A"
+      required:
+        - id
+        - number
+        - block
+
+    # ─── User (Request) ──────────────────────────────
+    CreateUserRequest:
+      type: object
+      description: Dados para criação de um novo morador
+      properties:
+        full_name:
+          type: string
+          description: Nome completo do morador
+          maxLength: 100
+          example: Maria Silva
+        email:
+          type: string
+          format: email
+          description: Email do morador (deve ser único)
+          maxLength: 100
+          example: maria@example.com
+        password:
+          type: string
+          description: Senha do morador
+          minLength: 8
+          maxLength: 72
+          example: password123
+        phone:
+          type: string
+          description: "Telefone do morador (validado como número BR, formatado como (XX) XXXXX-XXXX)"
+          maxLength: 15
+          example: "11999999999"
+        responsible:
+          type: boolean
+          description: Indica se o morador é o responsável pelo apartamento
+          default: false
+          example: false
+        apartment:
+          $ref: "#/components/schemas/CreateApartmentRequest"
+      required:
+        - full_name
+        - email
+        - password
+        - phone
+        - apartment
+
+    UpdateUserRequest:
+      type: object
+      description: Dados para atualização de um morador
+      properties:
+        full_name:
+          type: string
+          description: Novo nome completo
+          maxLength: 100
+          example: Maria Santos
+        phone:
+          type: string
+          description: Novo telefone
+          maxLength: 15
+          example: "11888888888"
+      required:
+        - full_name
+        - phone
+
+    # ─── User (Response) ─────────────────────────────
+    UserResponse:
+      type: object
+      description: Dados do usuário retornados pela API
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID do usuário
+          example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+        full_name:
+          type: string
+          description: Nome completo
+          example: Maria Silva
+        email:
+          type: string
+          format: email
+          description: Email do usuário
+          example: maria@example.com
+        phone:
+          type: string
+          description: Telefone formatado (padrão nacional BR)
+          example: "(11) 99999-9999"
+        status:
+          type: string
+          description: Status da conta
+          enum: [ATIVO, INATIVO, BLOQUEADO]
+          example: ATIVO
+        role:
+          type: string
+          description: Papel/função do usuário
+          enum: [MORADOR, PORTEIRO, SINDICO]
+          example: MORADOR
+        responsible:
+          type: boolean
+          description: Se o morador é responsável pelo apartamento
+          example: false
+        apartment:
+          anyOf:
+            - $ref: "#/components/schemas/ApartmentResponse"
+            - type: "null"
+          description: Dados do apartamento (null se não houver)
+      required:
+        - id
+        - full_name
+        - email
+        - phone
+        - status
+        - role
+        - responsible
+
+  # ─── Security Schemes ────────────────────────────
+  # Nenhum esquema de autenticação está implementado.
+  # Todas as rotas atuais são públicas.

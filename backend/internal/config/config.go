@@ -10,6 +10,11 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	AWS      AWSConfig
+	Docs     DocsConfig
+}
+
+type DocsConfig struct {
+	Path string
 }
 
 type ServerConfig struct {
@@ -70,6 +75,9 @@ func Load() (*Config, error) {
 			CognitoClientId:     getEnv("AWS_COGNITO_CLIENT_ID", "clientId"),
 			CognitoClientSecret: getEnv("AWS_COGNITO_CLIENT_SECRET", ""),
 			CognitoUserPoolID:   getEnv("AWS_COGNITO_USER_POOL_ID", ""),
+		},
+		Docs: DocsConfig{
+			Path: getEnv("DOCS_PATH", "../docs"),
 		},
 	}, nil
 }

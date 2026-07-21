@@ -44,6 +44,8 @@ func (s *Server) SetupRoutes() *gin.Engine {
 	router.PUT("/users/:id", userHandler.update)
 	router.DELETE("/users/:id", userHandler.delete)
 
+	s.registerDocsRoutes(router)
+
 	return router
 }
 
