@@ -127,18 +127,7 @@ func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) 
 		return nil, err
 	}
 
-	user := &models.User{
-		ID:          uuid.New(),
-		FullName:    input.FullName,
-		Email:       input.Email,
-		Password:    string(passwordHash),
-		Phone:       validNumber,
-		Status:      models.UserStatusActive,
-		Role:        models.RoleMorador,
-		Responsible: input.Responsible,
-		Apartment:   apartment,
-	}
-	user.ApartmentID = &apartment.ID
+	user := buildUser(input, apartment, passwordHash, validNumber)
 
 	if err := s.userRepository.Create(ctx, user, apartment); err != nil {
 		if errors.Is(err, apperrors.ErrUserAlreadyExists) {
@@ -147,9 +136,28 @@ func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) 
 		return nil, fmt.Errorf("create user: %w", err)
 	}
 
-	s.cognitoProvider.CreateUser(ctx, input)
+	if _, err := s.cognitoProvider.CreateUser(ctx, input); err != nil {
+		log.Error().Err(err).Msg("failed to create cognito user")
+	}
 
 	return userToResponse(user), nil
+}
+
+func buildUser(input *dto.CreateUserDTO, apartment *models.Apartment, passwordHash string, phone string) *models.User {
+	user := &models.User{
+		ID:          uuid.New(),
+		FullName:    input.FullName,
+		Email:       input.Email,
+		Password:    passwordHash,
+		Phone:       phone,
+		Status:      models.UserStatusActive,
+		Role:        models.RoleMorador,
+		Responsible: input.Responsible,
+		Apartment:   apartment,
+	}
+	user.ApartmentID = &apartment.ID
+
+	return user
 }
 
 func userToResponse(user *models.User) *dto.UserResponseDTO {
