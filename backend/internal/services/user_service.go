@@ -17,6 +17,7 @@ import (
 
 type CognitoProvider interface {
 	CreateUser(ctx context.Context, user *dto.CreateUserDTO) (bool, error)
+	DeleteUser(ctx context.Context, email string) error
 }
 
 type UserService struct {
@@ -74,6 +75,16 @@ func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, input *dto.U
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	user, err := s.userRepository.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrUserNotFound) {
+			return apperrors.ErrUserNotFound
+		}
+		return fmt.Errorf("find user: %w", err)
+	}
+
+	_ = s.cognitoProvider.DeleteUser(ctx, user.Email)
+
 	if err := s.userRepository.Delete(ctx, id); err != nil {
 		switch {
 		case errors.Is(err, apperrors.ErrUserNotFound):

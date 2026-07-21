@@ -49,3 +49,11 @@ func (a *AwsProvider) CreateUser(ctx context.Context, user *dto.CreateUserDTO) (
 
 	return confirmed, err
 }
+
+func (a *AwsProvider) DeleteUser(ctx context.Context, email string) error {
+	_, err := a.GetCognitoClient().AdminDeleteUser(ctx, &cognitoidentityprovider.AdminDeleteUserInput{
+		UserPoolId: aws.String(a.CognitoUserPoolID),
+		Username:   aws.String(email),
+	})
+	return err
+}

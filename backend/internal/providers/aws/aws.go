@@ -15,6 +15,7 @@ type AwsProvider struct {
 	client              *aws.Config
 	CognitoClientID     string
 	CognitoClientSecret string
+	CognitoUserPoolID   string
 }
 
 func NewAwsProvider(cfg *appconfig.Config) *AwsProvider {
@@ -33,6 +34,7 @@ func NewAwsProvider(cfg *appconfig.Config) *AwsProvider {
 		client:              &awsCfg,
 		CognitoClientID:     cfg.AWS.CognitoClientId,
 		CognitoClientSecret: cfg.AWS.CognitoClientSecret,
+		CognitoUserPoolID:   cfg.AWS.CognitoUserPoolID,
 	}
 }
 
