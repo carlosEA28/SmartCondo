@@ -89,25 +89,36 @@ func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) (*dto.UserResponseDTO, error) {
-
 	userExists, err := s.userRepository.FindByEmail(ctx, input.Email)
-	if err == nil && userExists.Email == input.Email {
+	if err == nil && userExists != nil {
 		return nil, apperrors.ErrUserAlreadyExists
 	}
-
-	passwordHash, err := utils.HashPassword(input.Password)
-	if err != nil {
-		return nil, fmt.Errorf("hash user password: %w", err)
-
+	if err != nil && !errors.Is(err, apperrors.ErrUserNotFound) {
+		return nil, fmt.Errorf("check user email: %w", err)
 	}
 
 	if input.Apartment == nil {
 		return nil, apperrors.ErrApartmentRequired
 	}
+
+	apartmentBlock := strings.TrimSpace(input.Apartment.Block)
+	existingApartment, err := s.userRepository.FindApartmentByNumberAndBlock(ctx, input.Apartment.Number, apartmentBlock)
+	if err == nil && existingApartment != nil {
+		return nil, apperrors.ErrApartmentAlreadyExists
+	}
+	if err != nil && !errors.Is(err, apperrors.ErrApartmentNotFound) {
+		return nil, fmt.Errorf("check apartment: %w", err)
+	}
+
+	passwordHash, err := utils.HashPassword(input.Password)
+	if err != nil {
+		return nil, fmt.Errorf("hash user password: %w", err)
+	}
+
 	apartment := &models.Apartment{
 		ID:     uuid.New(),
 		Number: input.Apartment.Number,
-		Block:  strings.TrimSpace(input.Apartment.Block),
+		Block:  apartmentBlock,
 	}
 
 	validNumber, err := utils.ValidatePhoneNumber(input.Phone)
@@ -133,11 +144,6 @@ func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) 
 		if errors.Is(err, apperrors.ErrUserAlreadyExists) {
 			return nil, apperrors.ErrUserAlreadyExists
 		}
-
-		if err != nil {
-			return nil, err
-		}
-
 		return nil, fmt.Errorf("create user: %w", err)
 	}
 

@@ -14,6 +14,7 @@ import (
 type UserRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
+	FindApartmentByNumberAndBlock(ctx context.Context, number int, block string) (*models.Apartment, error)
 	List(ctx context.Context) ([]models.User, error)
 	Create(ctx context.Context, user *models.User, apartment *models.Apartment) error
 	Save(ctx context.Context, user *models.User) error
@@ -50,6 +51,18 @@ func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (*mo
 	}
 
 	return &user, nil
+}
+
+func (r *GormUserRepository) FindApartmentByNumberAndBlock(ctx context.Context, number int, block string) (*models.Apartment, error) {
+	var apartment models.Apartment
+	if err := r.db.WithContext(ctx).Where("numero = ? AND bloco = ?", number, block).First(&apartment).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrApartmentNotFound
+		}
+		return nil, fmt.Errorf("find apartment by number and block: %w", err)
+	}
+
+	return &apartment, nil
 }
 
 func (r *GormUserRepository) List(ctx context.Context) ([]models.User, error) {
