@@ -8,6 +8,7 @@ require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/nyaruka/phonenumbers/v2 v2.0.5
 	github.com/rs/zerolog v1.35.1
 	golang.org/x/crypto v0.48.0
 	gorm.io/driver/postgres v1.6.0
@@ -18,7 +19,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.31 // indirect
-	github.com/nyaruka/phonenumbers/v2 v2.0.5 // indirect
 )
 
 require (

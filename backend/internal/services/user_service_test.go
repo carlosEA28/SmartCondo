@@ -61,10 +61,15 @@ func (f *fakeUserRepository) Delete(context.Context, uuid.UUID) error {
 type fakeCognitoProvider struct {
 	createUserResult bool
 	createUserErr    error
+	deleteUserErr    error
 }
 
 func (f *fakeCognitoProvider) CreateUser(context.Context, *dto.CreateUserDTO) (bool, error) {
 	return f.createUserResult, f.createUserErr
+}
+
+func (f *fakeCognitoProvider) DeleteUser(context.Context, string) error {
+	return f.deleteUserErr
 }
 
 func TestUserServiceGetUserReturnsUser(t *testing.T) {
@@ -201,7 +206,14 @@ func TestUserServiceCreateUserCallsCognito(t *testing.T) {
 }
 
 func TestUserServiceDeleteUserReturnsNotFound(t *testing.T) {
-	repository := &fakeUserRepository{deleteErr: apperrors.ErrUserNotFound}
+	repository := &fakeUserRepository{
+		findByIDResult: &models.User{
+			ID:       uuid.New(),
+			FullName: "Maria Silva",
+			Email:    "maria@example.com",
+		},
+		deleteErr: apperrors.ErrUserNotFound,
+	}
 	cognito := &fakeCognitoProvider{}
 	service := NewUserService(repository, cognito)
 
@@ -212,7 +224,14 @@ func TestUserServiceDeleteUserReturnsNotFound(t *testing.T) {
 }
 
 func TestUserServiceDeleteUserReturnsInUse(t *testing.T) {
-	repository := &fakeUserRepository{deleteErr: apperrors.ErrUserInUse}
+	repository := &fakeUserRepository{
+		findByIDResult: &models.User{
+			ID:       uuid.New(),
+			FullName: "Maria Silva",
+			Email:    "maria@example.com",
+		},
+		deleteErr: apperrors.ErrUserInUse,
+	}
 	cognito := &fakeCognitoProvider{}
 	service := NewUserService(repository, cognito)
 
@@ -223,7 +242,14 @@ func TestUserServiceDeleteUserReturnsInUse(t *testing.T) {
 }
 
 func TestUserServiceDeleteUserReturnsGenericError(t *testing.T) {
-	repository := &fakeUserRepository{deleteErr: errors.New("database error")}
+	repository := &fakeUserRepository{
+		findByIDResult: &models.User{
+			ID:       uuid.New(),
+			FullName: "Maria Silva",
+			Email:    "maria@example.com",
+		},
+		deleteErr: errors.New("database error"),
+	}
 	cognito := &fakeCognitoProvider{}
 	service := NewUserService(repository, cognito)
 
