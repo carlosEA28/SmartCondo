@@ -111,6 +111,13 @@ func (s *UserService) CreateUser(ctx context.Context, input *dto.CreateUserDTO) 
 		Block:  strings.TrimSpace(input.Apartment.Block),
 	}
 
+	validNumber, err := utils.ValidatePhoneNumber(input.Phone)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("TESTE NUMERO AQUI" + validNumber)
+
 	user := &models.User{
 		ID:          uuid.New(),
 		FullName:    input.FullName,
