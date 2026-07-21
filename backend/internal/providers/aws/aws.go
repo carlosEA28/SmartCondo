@@ -16,6 +16,8 @@ type AwsProvider struct {
 	CognitoClientID     string
 	CognitoClientSecret string
 	CognitoUserPoolID   string
+	S3Bucket            string
+	s3Endpoint          string
 }
 
 func NewAwsProvider(cfg *appconfig.Config) *AwsProvider {
@@ -35,11 +37,18 @@ func NewAwsProvider(cfg *appconfig.Config) *AwsProvider {
 		CognitoClientID:     cfg.AWS.CognitoClientId,
 		CognitoClientSecret: cfg.AWS.CognitoClientSecret,
 		CognitoUserPoolID:   cfg.AWS.CognitoUserPoolID,
+		S3Bucket:            cfg.AWS.S3Bucket,
+		s3Endpoint:          cfg.AWS.S3Endpoint,
 	}
 }
 
 func (a *AwsProvider) GetS3Client() *s3.Client {
-	return s3.NewFromConfig(*a.client)
+	return s3.NewFromConfig(*a.client, func(o *s3.Options) {
+		if a.s3Endpoint != "" {
+			o.BaseEndpoint = aws.String(a.s3Endpoint)
+			o.UsePathStyle = true
+		}
+	})
 }
 
 func (a *AwsProvider) GetCognitoClient() *cognitoidentityprovider.Client {
