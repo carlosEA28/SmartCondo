@@ -10,4 +10,7 @@ var (
 	ErrApartmentNotFound      = errors.New("apartment not found")
 	ErrApartmentAlreadyExists = errors.New("apartment already registered")
 	ErrInvalidUserData        = errors.New("invalid user data")
+	ErrVisitorNotFound        = errors.New("visitor not found")
+	ErrVisitorAlreadyExists   = errors.New("visitor already exists")
+	ErrInvalidVisitorData     = errors.New("invalid visitor data")
 )
