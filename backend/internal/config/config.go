@@ -71,7 +71,7 @@ func Load() (*Config, error) {
 			AccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", "test"),
 			SecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", "test"),
 			S3Bucket:        getEnv("AWS_S3_BUCKET", "bucket"),
-			S3Endpoint:      getEnv("AWS_S3_ENDPOINT", "http://localhost:4566"),
+			S3Endpoint:      getEnv("AWS_S3_ENDPOINT", ""),
 			CognitoClientId:     getEnv("AWS_COGNITO_CLIENT_ID", "clientId"),
 			CognitoClientSecret: getEnv("AWS_COGNITO_CLIENT_SECRET", ""),
 			CognitoUserPoolID:   getEnv("AWS_COGNITO_USER_POOL_ID", ""),

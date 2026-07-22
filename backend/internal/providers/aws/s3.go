@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"fmt"
 	"mime/multipart"
 	"strings"
 
@@ -28,7 +29,15 @@ func (a *AwsProvider) UploadFile(file *multipart.FileHeader, path string) (strin
 		return "", err
 	}
 
-	return *result.Key, nil
+	return a.publicURL(*result.Key), nil
+}
+
+func (a *AwsProvider) publicURL(key string) string {
+	if a.s3Endpoint != "" {
+		return fmt.Sprintf("%s/%s/%s", a.s3Endpoint, a.S3Bucket, key)
+	}
+
+	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", a.S3Bucket, a.client.Region, key)
 }
 
 func (a *AwsProvider) DeleteFile(path string) error {

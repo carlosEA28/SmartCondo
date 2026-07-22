@@ -12,16 +12,18 @@ import (
 )
 
 type Server struct {
-	config         *config.Config
-	db             *gorm.DB
-	userRepository repositories.UserRepository
+	config          *config.Config
+	db              *gorm.DB
+	userRepository  repositories.UserRepository
+	visitorRepository repositories.VisitorRepository
 }
 
 func New(cfg *config.Config, db *gorm.DB, userRepository repositories.UserRepository) *Server {
 	return &Server{
-		config:         cfg,
-		db:             db,
-		userRepository: userRepository,
+		config:             cfg,
+		db:                 db,
+		userRepository:     userRepository,
+		visitorRepository: repositories.NewGormVisitorRepository(db),
 	}
 }
 
@@ -43,6 +45,12 @@ func (s *Server) SetupRoutes() *gin.Engine {
 	router.GET("/users/:id", userHandler.getByID)
 	router.PUT("/users/:id", userHandler.update)
 	router.DELETE("/users/:id", userHandler.delete)
+
+	visitorService := services.NewVisitorService(s.visitorRepository, awsProvider)
+	visitorHandler := newVisitorHandler(visitorService)
+	router.POST("/visitors", visitorHandler.create)
+	router.GET("/visitors", visitorHandler.list)
+	router.GET("/visitors/:id", visitorHandler.getByID)
 
 	s.registerDocsRoutes(router)
 
