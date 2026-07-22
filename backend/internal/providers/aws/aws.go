@@ -11,8 +11,14 @@ import (
 	appconfig "github.com/carlosEA28/smartcondo/internal/config"
 )
 
+type CognitoClient interface {
+	SignUp(ctx context.Context, params *cognitoidentityprovider.SignUpInput, optFns ...func(*cognitoidentityprovider.Options)) (*cognitoidentityprovider.SignUpOutput, error)
+	AdminDeleteUser(ctx context.Context, params *cognitoidentityprovider.AdminDeleteUserInput, optFns ...func(*cognitoidentityprovider.Options)) (*cognitoidentityprovider.AdminDeleteUserOutput, error)
+}
+
 type AwsProvider struct {
 	client              *aws.Config
+	cognitoClient       CognitoClient
 	CognitoClientID     string
 	CognitoClientSecret string
 	CognitoUserPoolID   string
@@ -51,6 +57,9 @@ func (a *AwsProvider) GetS3Client() *s3.Client {
 	})
 }
 
-func (a *AwsProvider) GetCognitoClient() *cognitoidentityprovider.Client {
+func (a *AwsProvider) GetCognitoClient() CognitoClient {
+	if a.cognitoClient != nil {
+		return a.cognitoClient
+	}
 	return cognitoidentityprovider.NewFromConfig(*a.client)
 }

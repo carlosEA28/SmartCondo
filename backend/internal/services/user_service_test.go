@@ -72,6 +72,8 @@ func (f *fakeCognitoProvider) DeleteUser(context.Context, string) error {
 	return f.deleteUserErr
 }
 
+// --- GetUser tests ---
+
 func TestUserServiceGetUserReturnsUser(t *testing.T) {
 	id := uuid.New()
 	repository := &fakeUserRepository{findByIDResult: &models.User{
@@ -104,6 +106,22 @@ func TestUserServiceGetUserReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestUserServiceGetUserReturnsGenericError(t *testing.T) {
+	repository := &fakeUserRepository{findByIDErr: errors.New("connection timeout")}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.GetUser(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("GetUser() expected error, got nil")
+	}
+	if errors.Is(err, apperrors.ErrUserNotFound) {
+		t.Fatal("GetUser() should not return ErrUserNotFound for generic error")
+	}
+}
+
+// --- ListUsers tests ---
+
 func TestUserServiceListUsersReturnsUsers(t *testing.T) {
 	repository := &fakeUserRepository{listResult: []models.User{
 		{ID: uuid.New(), FullName: "Maria Silva", Role: models.RoleMorador},
@@ -120,6 +138,197 @@ func TestUserServiceListUsersReturnsUsers(t *testing.T) {
 		t.Fatalf("ListUsers() length = %d, want %d", len(response), len(repository.listResult))
 	}
 }
+
+func TestUserServiceListUsersReturnsError(t *testing.T) {
+	repository := &fakeUserRepository{listErr: errors.New("database connection failed")}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.ListUsers(context.Background())
+	if err == nil {
+		t.Fatal("ListUsers() expected error, got nil")
+	}
+}
+
+// --- UpdateUser tests ---
+
+func TestUserServiceUpdateUserReturnsNotFound(t *testing.T) {
+	repository := &fakeUserRepository{findByIDErr: apperrors.ErrUserNotFound}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.UpdateUser(context.Background(), uuid.New(), &dto.UpdateUserDTO{
+		FullName: "Maria Silva",
+		Phone:    "11999999999",
+	})
+	if !errors.Is(err, apperrors.ErrUserNotFound) {
+		t.Fatalf("UpdateUser() error = %v, want %v", err, apperrors.ErrUserNotFound)
+	}
+}
+
+func TestUserServiceUpdateUserRejectsEmptyFullName(t *testing.T) {
+	repository := &fakeUserRepository{findByIDResult: &models.User{
+		ID:       uuid.New(),
+		FullName: "Maria Silva",
+		Phone:    "11999999999",
+	}}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.UpdateUser(context.Background(), uuid.New(), &dto.UpdateUserDTO{
+		FullName: "  ",
+		Phone:    "11999999999",
+	})
+	if !errors.Is(err, apperrors.ErrInvalidUserData) {
+		t.Fatalf("UpdateUser() error = %v, want %v", err, apperrors.ErrInvalidUserData)
+	}
+}
+
+func TestUserServiceUpdateUserRejectsEmptyPhone(t *testing.T) {
+	repository := &fakeUserRepository{findByIDResult: &models.User{
+		ID:       uuid.New(),
+		FullName: "Maria Silva",
+		Phone:    "11999999999",
+	}}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.UpdateUser(context.Background(), uuid.New(), &dto.UpdateUserDTO{
+		FullName: "Maria Silva",
+		Phone:    "  ",
+	})
+	if !errors.Is(err, apperrors.ErrInvalidUserData) {
+		t.Fatalf("UpdateUser() error = %v, want %v", err, apperrors.ErrInvalidUserData)
+	}
+}
+
+func TestUserServiceUpdateUserSaveFails(t *testing.T) {
+	repository := &fakeUserRepository{
+		findByIDResult: &models.User{
+			ID:       uuid.New(),
+			FullName: "Maria Silva",
+			Phone:    "11999999999",
+		},
+		saveErr: errors.New("database write failed"),
+	}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.UpdateUser(context.Background(), uuid.New(), &dto.UpdateUserDTO{
+		FullName: "Maria Santos",
+		Phone:    "11888888888",
+	})
+	if err == nil {
+		t.Fatal("UpdateUser() expected error, got nil")
+	}
+}
+
+func TestUserServiceUpdateUserSuccess(t *testing.T) {
+	id := uuid.New()
+	repository := &fakeUserRepository{findByIDResult: &models.User{
+		ID:       id,
+		FullName: "Maria Silva",
+		Phone:    "11999999999",
+	}}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	response, err := service.UpdateUser(context.Background(), id, &dto.UpdateUserDTO{
+		FullName: "Maria Santos",
+		Phone:    "11888888888",
+	})
+	if err != nil {
+		t.Fatalf("UpdateUser() error = %v", err)
+	}
+	if response.FullName != "Maria Santos" {
+		t.Fatalf("UpdateUser() FullName = %q, want %q", response.FullName, "Maria Santos")
+	}
+}
+
+// --- DeleteUser tests ---
+
+func TestUserServiceDeleteUserReturnsNotFound(t *testing.T) {
+	repository := &fakeUserRepository{findByIDErr: apperrors.ErrUserNotFound}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	err := service.DeleteUser(context.Background(), uuid.New())
+	if !errors.Is(err, apperrors.ErrUserNotFound) {
+		t.Fatalf("DeleteUser() error = %v, want %v", err, apperrors.ErrUserNotFound)
+	}
+}
+
+func TestUserServiceDeleteUserFindByIDGenericError(t *testing.T) {
+	repository := &fakeUserRepository{findByIDErr: errors.New("database connection lost")}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	err := service.DeleteUser(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("DeleteUser() expected error, got nil")
+	}
+	if errors.Is(err, apperrors.ErrUserNotFound) {
+		t.Fatal("DeleteUser() should not return ErrUserNotFound for generic error")
+	}
+}
+
+func TestUserServiceDeleteUserReturnsInUse(t *testing.T) {
+	repository := &fakeUserRepository{
+		findByIDResult: &models.User{
+			ID:       uuid.New(),
+			FullName: "Maria Silva",
+			Email:    "maria@example.com",
+		},
+		deleteErr: apperrors.ErrUserInUse,
+	}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	err := service.DeleteUser(context.Background(), uuid.New())
+	if !errors.Is(err, apperrors.ErrUserInUse) {
+		t.Fatalf("DeleteUser() error = %v, want %v", err, apperrors.ErrUserInUse)
+	}
+}
+
+func TestUserServiceDeleteUserDeleteGenericError(t *testing.T) {
+	repository := &fakeUserRepository{
+		findByIDResult: &models.User{
+			ID:       uuid.New(),
+			FullName: "Maria Silva",
+			Email:    "maria@example.com",
+		},
+		deleteErr: errors.New("database error"),
+	}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	err := service.DeleteUser(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("DeleteUser() expected error, got nil")
+	}
+	if errors.Is(err, apperrors.ErrUserNotFound) {
+		t.Fatal("DeleteUser() should not return ErrUserNotFound for generic error")
+	}
+}
+
+func TestUserServiceDeleteUserSuccess(t *testing.T) {
+	repository := &fakeUserRepository{
+		findByIDResult: &models.User{
+			ID:       uuid.New(),
+			FullName: "Maria Silva",
+			Email:    "maria@example.com",
+		},
+	}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	err := service.DeleteUser(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatalf("DeleteUser() error = %v, want nil", err)
+	}
+}
+
+// --- CreateUser tests ---
 
 func TestUserServiceCreateUserCreatesResidentAndApartment(t *testing.T) {
 	repository := &fakeUserRepository{findByEmailErr: apperrors.ErrUserNotFound}
@@ -176,6 +385,17 @@ func TestUserServiceCreateUserRejectsDuplicateEmail(t *testing.T) {
 	}
 }
 
+func TestUserServiceCreateUserFindByEmailGenericError(t *testing.T) {
+	repository := &fakeUserRepository{findByEmailErr: errors.New("database connection failed")}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.CreateUser(context.Background(), validResidentInput())
+	if err == nil {
+		t.Fatal("CreateUser() expected error, got nil")
+	}
+}
+
 func TestUserServiceCreateUserRequiresApartmentForResident(t *testing.T) {
 	repository := &fakeUserRepository{findByEmailErr: apperrors.ErrUserNotFound}
 	cognito := &fakeCognitoProvider{createUserResult: true}
@@ -186,6 +406,62 @@ func TestUserServiceCreateUserRequiresApartmentForResident(t *testing.T) {
 	_, err := service.CreateUser(context.Background(), input)
 	if !errors.Is(err, apperrors.ErrApartmentRequired) {
 		t.Fatalf("CreateUser() error = %v, want %v", err, apperrors.ErrApartmentRequired)
+	}
+}
+
+func TestUserServiceCreateUserApartmentAlreadyExists(t *testing.T) {
+	repository := &fakeUserRepository{
+		findByEmailErr:      apperrors.ErrUserNotFound,
+		findApartmentResult: &models.Apartment{Number: 101, Block: "A"},
+	}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.CreateUser(context.Background(), validResidentInput())
+	if !errors.Is(err, apperrors.ErrApartmentAlreadyExists) {
+		t.Fatalf("CreateUser() error = %v, want %v", err, apperrors.ErrApartmentAlreadyExists)
+	}
+}
+
+func TestUserServiceCreateUserFindApartmentGenericError(t *testing.T) {
+	repository := &fakeUserRepository{
+		findByEmailErr:   apperrors.ErrUserNotFound,
+		findApartmentErr: errors.New("database error"),
+	}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.CreateUser(context.Background(), validResidentInput())
+	if err == nil {
+		t.Fatal("CreateUser() expected error, got nil")
+	}
+}
+
+func TestUserServiceCreateUserCreateError(t *testing.T) {
+	repository := &fakeUserRepository{
+		findByEmailErr: apperrors.ErrUserNotFound,
+		createErr:      errors.New("database write failed"),
+	}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.CreateUser(context.Background(), validResidentInput())
+	if err == nil {
+		t.Fatal("CreateUser() expected error, got nil")
+	}
+}
+
+func TestUserServiceCreateUserCreateDuplicateKeyError(t *testing.T) {
+	repository := &fakeUserRepository{
+		findByEmailErr: apperrors.ErrUserNotFound,
+		createErr:      apperrors.ErrUserAlreadyExists,
+	}
+	cognito := &fakeCognitoProvider{}
+	service := NewUserService(repository, cognito)
+
+	_, err := service.CreateUser(context.Background(), validResidentInput())
+	if !errors.Is(err, apperrors.ErrUserAlreadyExists) {
+		t.Fatalf("CreateUser() error = %v, want %v", err, apperrors.ErrUserAlreadyExists)
 	}
 }
 
@@ -205,132 +481,20 @@ func TestUserServiceCreateUserCallsCognito(t *testing.T) {
 	}
 }
 
-func TestUserServiceDeleteUserReturnsNotFound(t *testing.T) {
-	repository := &fakeUserRepository{
-		findByIDResult: &models.User{
-			ID:       uuid.New(),
-			FullName: "Maria Silva",
-			Email:    "maria@example.com",
-		},
-		deleteErr: apperrors.ErrUserNotFound,
+func TestUserServiceCreateUserCognitoErrorDoesNotFail(t *testing.T) {
+	repository := &fakeUserRepository{findByEmailErr: apperrors.ErrUserNotFound}
+	cognito := &fakeCognitoProvider{
+		createUserResult: false,
+		createUserErr:    errors.New("cognito service unavailable"),
 	}
-	cognito := &fakeCognitoProvider{}
 	service := NewUserService(repository, cognito)
 
-	err := service.DeleteUser(context.Background(), uuid.New())
-	if !errors.Is(err, apperrors.ErrUserNotFound) {
-		t.Fatalf("DeleteUser() error = %v, want %v", err, apperrors.ErrUserNotFound)
-	}
-}
-
-func TestUserServiceDeleteUserReturnsInUse(t *testing.T) {
-	repository := &fakeUserRepository{
-		findByIDResult: &models.User{
-			ID:       uuid.New(),
-			FullName: "Maria Silva",
-			Email:    "maria@example.com",
-		},
-		deleteErr: apperrors.ErrUserInUse,
-	}
-	cognito := &fakeCognitoProvider{}
-	service := NewUserService(repository, cognito)
-
-	err := service.DeleteUser(context.Background(), uuid.New())
-	if !errors.Is(err, apperrors.ErrUserInUse) {
-		t.Fatalf("DeleteUser() error = %v, want %v", err, apperrors.ErrUserInUse)
-	}
-}
-
-func TestUserServiceDeleteUserReturnsGenericError(t *testing.T) {
-	repository := &fakeUserRepository{
-		findByIDResult: &models.User{
-			ID:       uuid.New(),
-			FullName: "Maria Silva",
-			Email:    "maria@example.com",
-		},
-		deleteErr: errors.New("database error"),
-	}
-	cognito := &fakeCognitoProvider{}
-	service := NewUserService(repository, cognito)
-
-	err := service.DeleteUser(context.Background(), uuid.New())
-	if err == nil {
-		t.Fatal("DeleteUser() expected error, got nil")
-	}
-	if errors.Is(err, apperrors.ErrUserNotFound) {
-		t.Fatal("DeleteUser() should not return ErrUserNotFound for generic error")
-	}
-}
-
-func TestUserServiceUpdateUserReturnsNotFound(t *testing.T) {
-	repository := &fakeUserRepository{findByIDErr: apperrors.ErrUserNotFound}
-	cognito := &fakeCognitoProvider{}
-	service := NewUserService(repository, cognito)
-
-	_, err := service.UpdateUser(context.Background(), uuid.New(), &dto.UpdateUserDTO{
-		FullName: "Maria Silva",
-		Phone:    "11999999999",
-	})
-	if !errors.Is(err, apperrors.ErrUserNotFound) {
-		t.Fatalf("UpdateUser() error = %v, want %v", err, apperrors.ErrUserNotFound)
-	}
-}
-
-func TestUserServiceUpdateUserRejectsEmptyFullName(t *testing.T) {
-	repository := &fakeUserRepository{findByIDResult: &models.User{
-		ID:       uuid.New(),
-		FullName: "Maria Silva",
-		Phone:    "11999999999",
-	}}
-	cognito := &fakeCognitoProvider{}
-	service := NewUserService(repository, cognito)
-
-	_, err := service.UpdateUser(context.Background(), uuid.New(), &dto.UpdateUserDTO{
-		FullName: "  ",
-		Phone:    "11999999999",
-	})
-	if !errors.Is(err, apperrors.ErrInvalidUserData) {
-		t.Fatalf("UpdateUser() error = %v, want %v", err, apperrors.ErrInvalidUserData)
-	}
-}
-
-func TestUserServiceUpdateUserRejectsEmptyPhone(t *testing.T) {
-	repository := &fakeUserRepository{findByIDResult: &models.User{
-		ID:       uuid.New(),
-		FullName: "Maria Silva",
-		Phone:    "11999999999",
-	}}
-	cognito := &fakeCognitoProvider{}
-	service := NewUserService(repository, cognito)
-
-	_, err := service.UpdateUser(context.Background(), uuid.New(), &dto.UpdateUserDTO{
-		FullName: "Maria Silva",
-		Phone:    "  ",
-	})
-	if !errors.Is(err, apperrors.ErrInvalidUserData) {
-		t.Fatalf("UpdateUser() error = %v, want %v", err, apperrors.ErrInvalidUserData)
-	}
-}
-
-func TestUserServiceUpdateUserSuccess(t *testing.T) {
-	id := uuid.New()
-	repository := &fakeUserRepository{findByIDResult: &models.User{
-		ID:       id,
-		FullName: "Maria Silva",
-		Phone:    "11999999999",
-	}}
-	cognito := &fakeCognitoProvider{}
-	service := NewUserService(repository, cognito)
-
-	response, err := service.UpdateUser(context.Background(), id, &dto.UpdateUserDTO{
-		FullName: "Maria Santos",
-		Phone:    "11888888888",
-	})
+	response, err := service.CreateUser(context.Background(), validResidentInput())
 	if err != nil {
-		t.Fatalf("UpdateUser() error = %v", err)
+		t.Fatalf("CreateUser() should not fail when Cognito fails, error = %v", err)
 	}
-	if response.FullName != "Maria Santos" {
-		t.Fatalf("UpdateUser() FullName = %q, want %q", response.FullName, "Maria Santos")
+	if response == nil {
+		t.Fatal("CreateUser() expected response, got nil")
 	}
 }
 

@@ -447,3 +447,71 @@ func TestUserHandlerDeleteInUse(t *testing.T) {
 		t.Fatalf("Delete() status = %d, want %d", w.Code, http.StatusConflict)
 	}
 }
+
+func TestUserHandlerCreateGenericError(t *testing.T) {
+	service := &fakeUserService{
+		createUserErr: errors.New("internal service failure"),
+	}
+	handler := newUserHandler(service)
+	router := setupRouter(handler)
+
+	body := `{
+		"full_name": "Maria Silva",
+		"email": "maria@example.com",
+		"password": "password123",
+		"phone": "11999999999",
+		"apartment": {
+			"number": 101,
+			"block": "A"
+		}
+	}`
+
+	req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("Create() status = %d, want %d", w.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestUserHandlerUpdateGenericError(t *testing.T) {
+	id := uuid.New()
+	service := &fakeUserService{
+		updateUserErr: errors.New("internal service failure"),
+	}
+	handler := newUserHandler(service)
+	router := setupRouter(handler)
+
+	body := `{"full_name": "Maria Santos", "phone": "11888888888"}`
+
+	req := httptest.NewRequest(http.MethodPut, "/users/"+id.String(), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("Update() status = %d, want %d", w.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestUserHandlerDeleteGenericError(t *testing.T) {
+	id := uuid.New()
+	service := &fakeUserService{
+		deleteUserErr: errors.New("internal service failure"),
+	}
+	handler := newUserHandler(service)
+	router := setupRouter(handler)
+
+	req := httptest.NewRequest(http.MethodDelete, "/users/"+id.String(), nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("Delete() status = %d, want %d", w.Code, http.StatusInternalServerError)
+	}
+}
