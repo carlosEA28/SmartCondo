@@ -51,6 +51,7 @@ func (s *Server) SetupRoutes() *gin.Engine {
 	router.POST("/visitors", visitorHandler.create)
 	router.GET("/visitors", visitorHandler.list)
 	router.GET("/visitors/:id", visitorHandler.getByID)
+	router.DELETE("/visitors/:id", visitorHandler.delete)
 
 	s.registerDocsRoutes(router)
 

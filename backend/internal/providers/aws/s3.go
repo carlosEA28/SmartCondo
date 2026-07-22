@@ -40,10 +40,15 @@ func (a *AwsProvider) publicURL(key string) string {
 	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", a.S3Bucket, a.client.Region, key)
 }
 
-func (a *AwsProvider) DeleteFile(path string) error {
+func (a *AwsProvider) DeleteFile(url string) error {
+	key := strings.TrimPrefix(url, a.publicURL(""))
+	if key == url {
+		key = strings.TrimPrefix(url, "/")
+	}
+
 	_, err := a.GetS3Client().DeleteObject(context.TODO(), &s3.DeleteObjectInput{
 		Bucket: aws.String(a.S3Bucket),
-		Key:    aws.String(strings.TrimPrefix(path, "/")),
+		Key:    aws.String(key),
 	})
 
 	return err

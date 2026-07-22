@@ -18,6 +18,7 @@ import (
 
 type S3Uploader interface {
 	UploadFile(file *multipart.FileHeader, path string) (string, error)
+	DeleteFile(path string) error
 }
 
 type VisitorService struct {
@@ -90,6 +91,28 @@ func (s *VisitorService) ListVisitors(ctx context.Context) ([]dto.VisitorRespons
 	}
 
 	return response, nil
+}
+
+func (s *VisitorService) DeleteVisitor(ctx context.Context, id uuid.UUID) error {
+	visitor, err := s.visitorRepo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrVisitorNotFound) {
+			return apperrors.ErrVisitorNotFound
+		}
+		return fmt.Errorf("find visitor: %w", err)
+	}
+
+	if visitor.Photo != "" {
+		if err := s.s3Uploader.DeleteFile(visitor.Photo); err != nil {
+			return fmt.Errorf("delete visitor photo: %w", err)
+		}
+	}
+
+	if err := s.visitorRepo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("delete visitor: %w", err)
+	}
+
+	return nil
 }
 
 func visitorToResponse(visitor *models.Visitor) *dto.VisitorResponseDTO {

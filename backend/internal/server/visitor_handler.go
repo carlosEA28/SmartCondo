@@ -15,6 +15,7 @@ type visitorService interface {
 	CreateVisitor(ctx context.Context, input *dto.CreateVisitorDTO) (*dto.VisitorResponseDTO, error)
 	GetVisitor(ctx context.Context, id uuid.UUID) (*dto.VisitorResponseDTO, error)
 	ListVisitors(ctx context.Context) ([]dto.VisitorResponseDTO, error)
+	DeleteVisitor(ctx context.Context, id uuid.UUID) error
 }
 
 type visitorHandler struct {
@@ -69,6 +70,26 @@ func (h *visitorHandler) getByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, visitor)
+}
+
+func (h *visitorHandler) delete(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid visitor id"})
+		return
+	}
+
+	if err := h.service.DeleteVisitor(c.Request.Context(), id); err != nil {
+		switch {
+		case errors.Is(err, apperrors.ErrVisitorNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete visitor"})
+		}
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 func (h *visitorHandler) list(c *gin.Context) {

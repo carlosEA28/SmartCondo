@@ -16,6 +16,7 @@ type VisitorRepository interface {
 	FindByCPF(ctx context.Context, cpf string) (*models.Visitor, error)
 	List(ctx context.Context) ([]models.Visitor, error)
 	Create(ctx context.Context, visitor *models.Visitor) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type GormVisitorRepository struct {
@@ -57,6 +58,18 @@ func (r *GormVisitorRepository) List(ctx context.Context) ([]models.Visitor, err
 	}
 
 	return visitors, nil
+}
+
+func (r *GormVisitorRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	result := r.db.WithContext(ctx).Delete(&models.Visitor{}, "id = ?", id)
+	if result.Error != nil {
+		return fmt.Errorf("delete visitor: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return apperrors.ErrVisitorNotFound
+	}
+
+	return nil
 }
 
 func (r *GormVisitorRepository) Create(ctx context.Context, visitor *models.Visitor) error {
