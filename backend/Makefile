@@ -59,3 +59,12 @@ migrate-up: ## Apply all pending database migrations
 migrate-down: ## Roll back the latest database migration
 	@if [ -z "$(DATABASE_URL)" ]; then echo "DATABASE_URL or database settings in .env are required" >&2; exit 1; fi
 	@$(MIGRATE) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" -verbose down 1
+
+seed: ## Seed the database with initial data
+	@if [ -z "$(DATABASE_URL)" ]; then echo "DATABASE_URL or database settings in .env are required" >&2; exit 1; fi
+	@echo "Seeding database..."
+	@for f in db/seeds/*.sql; do \
+		echo "Running $$f..."; \
+		psql "$(DATABASE_URL)" -f "$$f" -q; \
+	done
+	@echo "Seed complete."
