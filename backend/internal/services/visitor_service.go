@@ -117,10 +117,11 @@ func (s *VisitorService) DeleteVisitor(ctx context.Context, id uuid.UUID) error 
 
 func visitorToResponse(visitor *models.Visitor) *dto.VisitorResponseDTO {
 	return &dto.VisitorResponseDTO{
-		ID:    visitor.ID,
-		Name:  visitor.Name,
-		CPF:   visitor.CPF,
-		Phone: visitor.Phone,
-		Photo: visitor.Photo,
+		ID:       visitor.ID,
+		Name:     visitor.Name,
+		CPF:      visitor.CPF,
+		Phone:    visitor.Phone,
+		Photo:    visitor.Photo,
+		Liberado: visitor.Liberado,
 	}
 }

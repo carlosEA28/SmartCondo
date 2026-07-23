@@ -14,9 +14,10 @@ type CreateVisitorDTO struct {
 }
 
 type VisitorResponseDTO struct {
-	ID    uuid.UUID `json:"id"`
-	Name  string    `json:"name"`
-	CPF   string    `json:"cpf"`
-	Phone string    `json:"phone"`
-	Photo string    `json:"photo,omitempty"`
+	ID       uuid.UUID `json:"id"`
+	Name     string    `json:"name"`
+	CPF      string    `json:"cpf"`
+	Phone    string    `json:"phone"`
+	Photo    string    `json:"photo,omitempty"`
+	Liberado bool      `json:"liberado"`
 }
