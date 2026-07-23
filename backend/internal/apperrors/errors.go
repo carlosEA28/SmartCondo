@@ -13,4 +13,8 @@ var (
 	ErrVisitorNotFound        = errors.New("visitor not found")
 	ErrVisitorAlreadyExists   = errors.New("visitor already exists")
 	ErrInvalidVisitorData     = errors.New("invalid visitor data")
+	ErrVisitNotFound          = errors.New("visit not found")
+	ErrPorteiroNotFound       = errors.New("porteiro not found")
+	ErrInvalidPorteiroData    = errors.New("invalid porteiro data")
+	ErrFilterRequired         = errors.New("at least one search filter is required")
 )
