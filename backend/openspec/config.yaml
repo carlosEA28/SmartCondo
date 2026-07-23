@@ -1,20 +1,61 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# ==========================================
+# OpenSpec Configuration
+# ==========================================
+version: "1.0"
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+# ------------------------------------------
+# Diretrizes Globais do Projeto
+# ------------------------------------------
+project:
+  name: "app-backend"
+  rules:
+    - "Analisar o código existente antes de criar novas estruturas ou tabelas."
+    - "Reaproveitar tabelas e entidades já existentes no banco de dados."
+    - "Nunca engolir exceções; utilizar tratamento centralizado de erros."
+
+# ------------------------------------------
+# Automação de Git & Workflow
+# ------------------------------------------
+git:
+  auto_branch: true
+  branch_prefix: "feature/"
+  commit_strategy: "per-task" # Cria 1 commit por tarefa concluída no tasks.md
+  commit_convention: "conventional-commits" # ex: feat(porteiro): mensagem
+  commit_format: "{type}({scope}): {task_description}"
+
+# ------------------------------------------
+# Referência de Sub-Agentes (.opencode/agents)
+# ------------------------------------------
+agents:
+  directory: ".opencode/agents"
+  sub_agents:
+    - name: "api-documenter"
+      file: ".opencode/agents/api-documenter.md"
+      description: "Analisa a codebase, valida o banco e documenta as especificações e contratos no design.md"
+      auto_invoke: true
+
+    - name: "feature-tester"
+      file: ".opencode/agents/feture-tester.md" # Aponta para o seu arquivo existente
+      description: "Implementa o código seguindo o tasks.md e cria os testes da funcionalidade"
+
+    - name: "git-commit"
+      file: ".opencode/agents/git-commit.md"
+      description: "Audita os diffs, valida padrões de segurança e realiza os commits por tarefa"
+      auto_invoke_on: "pre-commit"
+
+# ------------------------------------------
+# Pipeline do OpenSpec (Etapas Mapeadas)
+# ------------------------------------------
+pipeline:
+  proposal:
+    require_codebase_analysis: true
+    use_agent: "api-documenter"
+  design:
+    use_agent: "api-documenter"
+  tasks:
+    atomic: true
+  implementation:
+    use_agent: "feature-tester"
+    commit_agent: "git-commit"
