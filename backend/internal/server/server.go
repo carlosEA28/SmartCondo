@@ -12,10 +12,11 @@ import (
 )
 
 type Server struct {
-	config          *config.Config
-	db              *gorm.DB
-	userRepository  repositories.UserRepository
+	config           *config.Config
+	db               *gorm.DB
+	userRepository   repositories.UserRepository
 	visitorRepository repositories.VisitorRepository
+	visitRepository  repositories.VisitRepository
 }
 
 func New(cfg *config.Config, db *gorm.DB, userRepository repositories.UserRepository) *Server {
@@ -23,7 +24,8 @@ func New(cfg *config.Config, db *gorm.DB, userRepository repositories.UserReposi
 		config:             cfg,
 		db:                 db,
 		userRepository:     userRepository,
-		visitorRepository: repositories.NewGormVisitorRepository(db),
+		visitorRepository:  repositories.NewGormVisitorRepository(db),
+		visitRepository:    repositories.NewGormVisitRepository(db),
 	}
 }
 
@@ -53,6 +55,11 @@ func (s *Server) SetupRoutes() *gin.Engine {
 	router.GET("/visitors/:id", visitorHandler.getByID)
 	router.DELETE("/visitors/:id", visitorHandler.delete)
 
+	porteiroService := services.NewPorteiroService(s.db, s.visitorRepository, s.visitRepository, s.userRepository)
+	porteiroHandler := newPorteiroHandler(porteiroService)
+	router.GET("/porteiros/visitantes", porteiroHandler.search)
+	router.PATCH("/porteiros/visitantes/:id/liberar", porteiroHandler.release)
+
 	s.registerDocsRoutes(router)
 
 	return router
@@ -66,7 +73,7 @@ func (s *Server) corsMiddleware() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 		if c.Request.Method == "OPTIONS" {
