@@ -4,15 +4,25 @@ info:
   description: |
     API do sistema SmartCondo para gestão de condomínios.
 
-    Atualmente implementa o CRUD de usuários (moradores) com vínculo a apartamentos.
-    A autenticação via AWS Cognito está预备ada mas ainda não exposta como endpoint.
+    ## Módulos Implementados
+
+    - **Usuários** — CRUD de moradores com vínculo a apartamentos
+    - **Visitantes** — CRUD de visitantes com upload de foto via S3
+    - **Porteiro** — Busca de visitantes com filtros e liberação de entrada
+    - **Síndico** — Publicação e gerenciamento de comunicados
+    - **Documentação** — Swagger UI interativo
+
+    ## Autenticação
+
+    Atualmente apenas o módulo de **Comunicados** exige autenticação/autorização,
+    através do header `X-User-ID` contendo o UUID de um usuário com role `SINDICO`.
+    Os demais endpoints são públicos.
 
     ## Ambiente
 
     - **Base URL (dev):** `http://localhost:8080`
-    - **Formato:** JSON
-    - **Autenticação:** Nenhuma (rotas públicas)
-  version: "1.0.0"
+    - **Formato:** JSON (exceto upload de visitante que usa `multipart/form-data`)
+  version: "2.0.0"
   contact:
     name: SmartCondo Team
   servers:
@@ -20,6 +30,9 @@ info:
       description: Servidor de desenvolvimento local
 
 paths:
+  # ─────────────────────────────────────────────────────────────
+  # HEALTH
+  # ─────────────────────────────────────────────────────────────
   /health:
     get:
       summary: Health Check
@@ -39,6 +52,9 @@ paths:
               example:
                 status: ok
 
+  # ─────────────────────────────────────────────────────────────
+  # USUÁRIOS
+  # ─────────────────────────────────────────────────────────────
   /users:
     post:
       summary: Criar Usuário
@@ -46,11 +62,11 @@ paths:
         Cria um novo morador com vínculo a um apartamento.
 
         **Fluxo:**
-        1. Valida se o email já está cadastrado
-        2. Valida se o apartamento (número + bloco) já está cadastrado
+        1. Valida email único
+        2. Valida apartamento (número + bloco) único
         3. Hash da senha com bcrypt
-        4. Valida e formata o telefone (formato brasileiro)
-        5. Cria usuário e apartamento em uma transação atômica
+        4. Valida e formata telefone (formato brasileiro)
+        5. Cria usuário e apartamento em transação atômica
         6. Tenta cadastrar no AWS Cognito (falha não crítica)
 
         O usuário é criado com:
@@ -117,7 +133,7 @@ paths:
                   value:
                     error: apartment already registered
         "422":
-          description: Dados inválidos — apartamento não informado
+          description: Apartamento não informado
           content:
             application/json:
               schema:
@@ -136,8 +152,8 @@ paths:
     get:
       summary: Listar Usuários
       description: |
-        Retorna todos os usuários cadastrados, ordenados por nome (ordem alfabética ASC).
-        Inclui os dados do apartamento quando existente.
+        Retorna todos os usuários cadastrados, ordenados por nome (ASC).
+        Inclui dados do apartamento quando existente.
       tags:
         - Usuários
       operationId: listUsers
@@ -245,10 +261,10 @@ paths:
     put:
       summary: Atualizar Usuário
       description: |
-        Atualiza o nome completo e/ou telefone de um usuário existente.
+        Atualiza o nome completo e telefone de um usuário existente.
 
         **Validações:**
-        - Nome e telefone não podem ficar vazios após remoção de espaços
+        - Nome e telefone não podem ficar vazios após trim
         - Nome: máximo 100 caracteres
         - Telefone: máximo 15 caracteres
       tags:
@@ -292,7 +308,7 @@ paths:
                   number: 101
                   block: "A"
         "400":
-          description: UUID inválido ou corpo da requisição mal formatado
+          description: UUID inválido ou corpo mal formatado
           content:
             application/json:
               schema:
@@ -342,7 +358,7 @@ paths:
         3. Exclui o registro no banco de dados
 
         **Restrições:**
-        - Não é possível excluir um usuário que possui registros associados
+        - Não é possível excluir usuário com registros associados
           (visitas, reservas, pagamentos, comunicados, notificações)
       tags:
         - Usuários
@@ -358,7 +374,7 @@ paths:
             example: f47ac10b-58cc-4372-a567-0e02b2c3d479
       responses:
         "204":
-          description: Usuário excluído com sucesso (sem corpo na resposta)
+          description: Usuário excluído com sucesso (sem corpo)
         "400":
           description: UUID inválido
           content:
@@ -392,9 +408,610 @@ paths:
               example:
                 error: failed to delete user
 
+  # ─────────────────────────────────────────────────────────────
+  # VISITANTES
+  # ─────────────────────────────────────────────────────────────
+  /visitors:
+    post:
+      summary: Criar Visitante
+      description: |
+        Cadastra um novo visitante com opção de upload de foto.
+
+        **Formato:** `multipart/form-data`
+
+        **Fluxo:**
+        1. Valida CPF único
+        2. Valida telefone (formato brasileiro)
+        3. Se foto enviada, faz upload para AWS S3
+        4. Persiste visitante no banco
+
+        O visitante é criado com `liberado: false`.
+      tags:
+        - Visitantes
+      operationId: createVisitor
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CreateVisitorRequest"
+      responses:
+        "201":
+          description: Visitante criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitorResponse"
+              example:
+                id: b1a2c3d4-e5f6-7890-abcd-ef1234567890
+                name: Carlos Pereira
+                cpf: "12345678901"
+                phone: "(11) 98888-8888"
+                photo: "https://bucket.s3.amazonaws.com/visitors/b1a2c3d4/photo.jpg"
+                liberado: false
+        "400":
+          description: Requisição mal formatada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid request body
+        "409":
+          description: CPF já cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: visitor already exists
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to create visitor
+
+    get:
+      summary: Listar Visitantes
+      description: Retorna todos os visitantes cadastrados, ordenados por nome (ASC).
+      tags:
+        - Visitantes
+      operationId: listVisitors
+      responses:
+        "200":
+          description: Lista de visitantes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VisitorResponse"
+              example:
+                - id: b1a2c3d4-e5f6-7890-abcd-ef1234567890
+                  name: Carlos Pereira
+                  cpf: "12345678901"
+                  phone: "(11) 98888-8888"
+                  photo: "https://bucket.s3.amazonaws.com/visitors/b1a2c3d4/photo.jpg"
+                  liberado: false
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to list visitors
+
+  /visitors/{id}:
+    get:
+      summary: Obter Visitante por ID
+      description: Retorna os dados de um visitante específico pelo seu UUID.
+      tags:
+        - Visitantes
+      operationId: getVisitorByID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do visitante
+          schema:
+            type: string
+            format: uuid
+            example: b1a2c3d4-e5f6-7890-abcd-ef1234567890
+      responses:
+        "200":
+          description: Dados do visitante
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitorResponse"
+              example:
+                id: b1a2c3d4-e5f6-7890-abcd-ef1234567890
+                name: Carlos Pereira
+                cpf: "12345678901"
+                phone: "(11) 98888-8888"
+                photo: "https://bucket.s3.amazonaws.com/visitors/b1a2c3d4/photo.jpg"
+                liberado: false
+        "400":
+          description: UUID inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid visitor id
+        "404":
+          description: Visitante não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: visitor not found
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to get visitor
+
+    delete:
+      summary: Excluir Visitante
+      description: |
+        Remove um visitante do sistema.
+
+        Se o visitante possuir foto, o arquivo também é removido do S3.
+      tags:
+        - Visitantes
+      operationId: deleteVisitor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do visitante
+          schema:
+            type: string
+            format: uuid
+            example: b1a2c3d4-e5f6-7890-abcd-ef1234567890
+      responses:
+        "204":
+          description: Visitante excluído com sucesso (sem corpo)
+        "400":
+          description: UUID inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid visitor id
+        "404":
+          description: Visitante não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: visitor not found
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to delete visitor
+
+  # ─────────────────────────────────────────────────────────────
+  # PORTEIRO
+  # ─────────────────────────────────────────────────────────────
+  /porteiros/visitantes:
+    get:
+      summary: Buscar Visitantes
+      description: |
+        Busca visitantes aplicando filtros. Pelo menos um filtro é obrigatório.
+
+        **Filtros disponíveis:**
+        - `nome`: busca parcial (ILIKE)
+        - `cpf`: busca exata
+        - `telefone`: busca parcial (ILIKE)
+        - `liberado`: true/false
+
+        Os filtros são combinados com AND.
+      tags:
+        - Porteiro
+      operationId: searchVisitors
+      parameters:
+        - name: nome
+          in: query
+          description: Nome do visitante (busca parcial)
+          schema:
+            type: string
+            example: Carlos
+        - name: cpf
+          in: query
+          description: CPF do visitante (busca exata, 11 dígitos)
+          schema:
+            type: string
+            example: "12345678901"
+        - name: telefone
+          in: query
+          description: Telefone do visitante (busca parcial)
+          schema:
+            type: string
+            example: "1198888"
+        - name: liberado
+          in: query
+          description: Status de liberação
+          schema:
+            type: boolean
+            example: false
+      responses:
+        "200":
+          description: Lista de visitantes encontrados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VisitorResponse"
+        "400":
+          description: Nenhum filtro informado ou parâmetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                noFilter:
+                  summary: Nenhum filtro informado
+                  value:
+                    error: at least one search filter is required
+                invalidParams:
+                  summary: Parâmetros inválidos
+                  value:
+                    error: invalid query parameters
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to search visitors
+
+  /porteiros/visitantes/{id}/liberar:
+    patch:
+      summary: Liberar Visitante
+      description: |
+        Registra a liberação de entrada de um visitante.
+
+        **Fluxo em transação atômica:**
+        1. Marca o visitante como `liberado: true`
+        2. Cria um registro de visita com data/hora atual
+
+        O porteiro responsável é identificado pelo `porteiro_id` no body.
+        Opcionalmente, pode ser informado o `morador_id` de destino.
+      tags:
+        - Porteiro
+      operationId: releaseVisitor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do visitante a ser liberado
+          schema:
+            type: string
+            format: uuid
+            example: b1a2c3d4-e5f6-7890-abcd-ef1234567890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseRequest"
+            example:
+              porteiro_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+              morador_id: f47ac10b-58cc-4372-a567-0e02b2c3d479
+      responses:
+        "200":
+          description: Visitante liberado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitorResponse"
+              example:
+                id: b1a2c3d4-e5f6-7890-abcd-ef1234567890
+                name: Carlos Pereira
+                cpf: "12345678901"
+                phone: "(11) 98888-8888"
+                photo: "https://bucket.s3.amazonaws.com/visitors/b1a2c3d4/photo.jpg"
+                liberado: true
+        "400":
+          description: UUID inválido, corpo mal formatado ou porteiro não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidID:
+                  summary: UUID inválido
+                  value:
+                    error: invalid visitor id
+                invalidBody:
+                  summary: JSON inválido
+                  value:
+                    error: invalid request body
+                porteiroNotFound:
+                  summary: Porteiro não encontrado
+                  value:
+                    error: porteiro not found
+        "404":
+          description: Visitante não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: visitor not found
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to release visitor
+
+  # ─────────────────────────────────────────────────────────────
+  # COMUNICADOS (SÍNDICO)
+  # ─────────────────────────────────────────────────────────────
+  /sindico/comunicados:
+    post:
+      summary: Publicar Comunicado
+      description: |
+        Publica um novo comunicado no condomínio.
+
+        **Requer autenticação de síndico** via header `X-User-ID`.
+      tags:
+        - Comunicados
+      operationId: publishComunicado
+      parameters:
+        - name: X-User-ID
+          in: header
+          required: true
+          description: UUID do síndico autenticado
+          schema:
+            type: string
+            format: uuid
+            example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateComunicadoRequest"
+            example:
+              titulo: "Manutenção do elevador"
+              descricao: "O elevador estará em manutenção no dia 15/08 das 8h às 18h."
+      responses:
+        "201":
+          description: Comunicado publicado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComunicadoResponse"
+              example:
+                id: c1d2e3f4-a5b6-7890-abcd-ef1234567890
+                titulo: "Manutenção do elevador"
+                descricao: "O elevador estará em manutenção no dia 15/08 das 8h às 18h."
+                dataPublicacao: "2026-07-23T14:30:00Z"
+                sindicoId: f47ac10b-58cc-4372-a567-0e02b2c3d479
+                sindicoNome: "José Síndico"
+        "400":
+          description: Corpo mal formatado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid request body
+        "401":
+          description: Header de autenticação ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: missing authentication header
+        "403":
+          description: Usuário não autorizado como síndico
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: user is not authorized as sindico
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to publish comunicado
+
+    get:
+      summary: Listar Comunicados
+      description: |
+        Retorna todos os comunicados publicados, ordenados por data de publicação (decrescente).
+        Inclui o nome do síndico que publicou.
+      tags:
+        - Comunicados
+      operationId: listComunicados
+      responses:
+        "200":
+          description: Lista de comunicados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComunicadoResponse"
+              example:
+                - id: c1d2e3f4-a5b6-7890-abcd-ef1234567890
+                  titulo: "Manutenção do elevador"
+                  descricao: "O elevador estará em manutenção no dia 15/08 das 8h às 18h."
+                  dataPublicacao: "2026-07-23T14:30:00Z"
+                  sindicoId: f47ac10b-58cc-4372-a567-0e02b2c3d479
+                  sindicoNome: "José Síndico"
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to list comunicados
+
+  /sindico/comunicados/{id}:
+    get:
+      summary: Obter Comunicado por ID
+      description: Retorna os dados de um comunicado específico pelo seu UUID.
+      tags:
+        - Comunicados
+      operationId: getComunicadoByID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do comunicado
+          schema:
+            type: string
+            format: uuid
+            example: c1d2e3f4-a5b6-7890-abcd-ef1234567890
+      responses:
+        "200":
+          description: Dados do comunicado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComunicadoResponse"
+              example:
+                id: c1d2e3f4-a5b6-7890-abcd-ef1234567890
+                titulo: "Manutenção do elevador"
+                descricao: "O elevador estará em manutenção no dia 15/08 das 8h às 18h."
+                dataPublicacao: "2026-07-23T14:30:00Z"
+                sindicoId: f47ac10b-58cc-4372-a567-0e02b2c3d479
+                sindicoNome: "José Síndico"
+        "400":
+          description: UUID inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid comunicado id
+        "404":
+          description: Comunicado não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: comunicado not found
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to get comunicado
+
+    delete:
+      summary: Excluir Comunicado
+      description: |
+        Remove um comunicado. Apenas o síndico que o publicou pode excluí-lo.
+
+        **Requer autenticação de síndico** via header `X-User-ID`.
+      tags:
+        - Comunicados
+      operationId: deleteComunicado
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do comunicado
+          schema:
+            type: string
+            format: uuid
+            example: c1d2e3f4-a5b6-7890-abcd-ef1234567890
+        - name: X-User-ID
+          in: header
+          required: true
+          description: UUID do síndico autenticado
+          schema:
+            type: string
+            format: uuid
+            example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+      responses:
+        "204":
+          description: Comunicado excluído com sucesso (sem corpo)
+        "400":
+          description: UUID inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: invalid comunicado id
+        "401":
+          description: Header de autenticação ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: missing authentication header
+        "403":
+          description: Usuário não autorizado ou não é dono do comunicado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notSindico:
+                  summary: Não é síndico
+                  value:
+                    error: user is not authorized as sindico
+                notOwner:
+                  summary: Não é o autor do comunicado
+                  value:
+                    error: you can only delete your own comunicados
+        "404":
+          description: Comunicado não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: comunicado not found
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: failed to delete comunicado
+
 components:
   schemas:
-    # ─── Errors ──────────────────────────────────────
+    # ─── Errors ────────────────────────────────────────────
     ErrorResponse:
       type: object
       description: Resposta padrão para erros
@@ -405,7 +1022,7 @@ components:
       required:
         - error
 
-    # ─── Health ──────────────────────────────────────
+    # ─── Health ────────────────────────────────────────────
     HealthResponse:
       type: object
       properties:
@@ -416,7 +1033,7 @@ components:
       required:
         - status
 
-    # ─── Apartment (Request) ─────────────────────────
+    # ─── Apartment ─────────────────────────────────────────
     CreateApartmentRequest:
       type: object
       description: Dados do apartamento para criação
@@ -435,7 +1052,6 @@ components:
         - number
         - block
 
-    # ─── Apartment (Response) ────────────────────────
     ApartmentResponse:
       type: object
       description: Dados do apartamento na resposta
@@ -458,7 +1074,7 @@ components:
         - number
         - block
 
-    # ─── User (Request) ──────────────────────────────
+    # ─── User ──────────────────────────────────────────────
     CreateUserRequest:
       type: object
       description: Dados para criação de um novo morador
@@ -482,12 +1098,12 @@ components:
           example: password123
         phone:
           type: string
-          description: "Telefone do morador (validado como número BR, formatado como (XX) XXXXX-XXXX)"
+          description: Telefone (validado como número BR)
           maxLength: 15
           example: "11999999999"
         responsible:
           type: boolean
-          description: Indica se o morador é o responsável pelo apartamento
+          description: Indica se é o responsável pelo apartamento
           default: false
           example: false
         apartment:
@@ -517,7 +1133,6 @@ components:
         - full_name
         - phone
 
-    # ─── User (Response) ─────────────────────────────
     UserResponse:
       type: object
       description: Dados do usuário retornados pela API
@@ -568,6 +1183,156 @@ components:
         - role
         - responsible
 
-  # ─── Security Schemes ────────────────────────────
-  # Nenhum esquema de autenticação está implementado.
-  # Todas as rotas atuais são públicas.
+    # ─── Visitor ───────────────────────────────────────────
+    CreateVisitorRequest:
+      type: object
+      description: Dados para criação de um visitante (multipart/form-data)
+      properties:
+        name:
+          type: string
+          description: Nome completo do visitante
+          maxLength: 100
+          example: Carlos Pereira
+        cpf:
+          type: string
+          description: CPF do visitante (11 dígitos, apenas números)
+          minLength: 11
+          maxLength: 11
+          example: "12345678901"
+        phone:
+          type: string
+          description: Telefone do visitante
+          maxLength: 15
+          example: "11988888888"
+        photo:
+          type: string
+          format: binary
+          description: Foto do visitante (upload de arquivo)
+      required:
+        - name
+        - cpf
+        - phone
+
+    VisitorResponse:
+      type: object
+      description: Dados do visitante retornados pela API
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID do visitante
+          example: b1a2c3d4-e5f6-7890-abcd-ef1234567890
+        name:
+          type: string
+          description: Nome do visitante
+          example: Carlos Pereira
+        cpf:
+          type: string
+          description: CPF do visitante
+          example: "12345678901"
+        phone:
+          type: string
+          description: Telefone do visitante
+          example: "(11) 98888-8888"
+        photo:
+          type: string
+          description: URL da foto no S3
+          example: "https://bucket.s3.amazonaws.com/visitors/b1a2c3d4/photo.jpg"
+        liberado:
+          type: boolean
+          description: Indica se o visitante já foi liberado
+          example: false
+      required:
+        - id
+        - name
+        - cpf
+        - phone
+        - liberado
+
+    # ─── Porteiro ─────────────────────────────────────────
+    ReleaseRequest:
+      type: object
+      description: Dados para liberação de visitante
+      properties:
+        porteiro_id:
+          type: string
+          format: uuid
+          description: UUID do porteiro responsável pela liberação
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        morador_id:
+          type: string
+          format: uuid
+          description: UUID do morador de destino (opcional)
+          example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+      required:
+        - porteiro_id
+
+    # ─── Comunicado ───────────────────────────────────────
+    CreateComunicadoRequest:
+      type: object
+      description: Dados para publicação de um comunicado
+      properties:
+        titulo:
+          type: string
+          description: Título do comunicado
+          maxLength: 100
+          example: "Manutenção do elevador"
+        descricao:
+          type: string
+          description: Descrição detalhada do comunicado
+          example: "O elevador estará em manutenção no dia 15/08 das 8h às 18h."
+      required:
+        - titulo
+        - descricao
+
+    ComunicadoResponse:
+      type: object
+      description: Dados do comunicado retornados pela API
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID do comunicado
+          example: c1d2e3f4-a5b6-7890-abcd-ef1234567890
+        titulo:
+          type: string
+          description: Título do comunicado
+          example: "Manutenção do elevador"
+        descricao:
+          type: string
+          description: Descrição detalhada
+          example: "O elevador estará em manutenção no dia 15/08 das 8h às 18h."
+        dataPublicacao:
+          type: string
+          format: date-time
+          description: Data e hora da publicação
+          example: "2026-07-23T14:30:00Z"
+        sindicoId:
+          type: string
+          format: uuid
+          description: UUID do síndico que publicou
+          example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+        sindicoNome:
+          type: string
+          description: Nome do síndico que publicou
+          example: "José Síndico"
+      required:
+        - id
+        - titulo
+        - descricao
+        - dataPublicacao
+        - sindicoId
+        - sindicoNome
+
+  securitySchemes:
+    UserIDAuth:
+      type: apiKey
+      in: header
+      name: X-User-ID
+      description: |
+        Autenticação baseada em header para endpoints de síndico.
+        Enviar o UUID de um usuário com role `SINDICO`.
+        Exemplo: `X-User-ID: f47ac10b-58cc-4372-a567-0e02b2c3d479`
+
+security:
+  - {}
