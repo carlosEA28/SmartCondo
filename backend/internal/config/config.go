@@ -7,10 +7,19 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	AWS      AWSConfig
-	Docs     DocsConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	AWS       AWSConfig
+	Mailtrap  MailtrapConfig
+	Docs      DocsConfig
+}
+
+type MailtrapConfig struct {
+	Host      string
+	Port      string
+	Username  string
+	Password  string
+	FromEmail string
 }
 
 type DocsConfig struct {
@@ -75,6 +84,13 @@ func Load() (*Config, error) {
 			CognitoClientId:     getEnv("AWS_COGNITO_CLIENT_ID", "clientId"),
 			CognitoClientSecret: getEnv("AWS_COGNITO_CLIENT_SECRET", ""),
 			CognitoUserPoolID:   getEnv("AWS_COGNITO_USER_POOL_ID", ""),
+		},
+		Mailtrap: MailtrapConfig{
+			Host:      getEnv("MAILTRAP_HOST", ""),
+			Port:      getEnv("MAILTRAP_PORT", "2525"),
+			Username:  getEnv("MAILTRAP_USERNAME", ""),
+			Password:  getEnv("MAILTRAP_PASSWORD", ""),
+			FromEmail: getEnv("MAILTRAP_FROM_EMAIL", ""),
 		},
 		Docs: DocsConfig{
 			Path: getEnv("DOCS_PATH", "../docs"),
