@@ -19,6 +19,7 @@ type Server struct {
 	visitorRepository    repositories.VisitorRepository
 	visitRepository      repositories.VisitRepository
 	comunicadoRepository repositories.ComunicadoRepository
+	pagamentoRepository  repositories.PagamentoRepository
 }
 
 func New(cfg *config.Config, db *gorm.DB, userRepository repositories.UserRepository) *Server {
@@ -29,6 +30,7 @@ func New(cfg *config.Config, db *gorm.DB, userRepository repositories.UserReposi
 		visitorRepository:    repositories.NewGormVisitorRepository(db),
 		visitRepository:      repositories.NewGormVisitRepository(db),
 		comunicadoRepository: repositories.NewGormComunicadoRepository(db),
+		pagamentoRepository:  repositories.NewGormPagamentoRepository(db),
 	}
 }
 
@@ -70,6 +72,10 @@ func (s *Server) SetupRoutes() *gin.Engine {
 	router.GET("/sindico/comunicados", comunicadoHandler.list)
 	router.GET("/sindico/comunicados/:id", comunicadoHandler.getByID)
 	router.DELETE("/sindico/comunicados/:id", sindicoMiddleware, comunicadoHandler.delete)
+
+	inadimplenteService := services.NewInadimplenteService(s.pagamentoRepository)
+	inadimplenteHandler := newInadimplenteHandler(inadimplenteService)
+	router.GET("/sindico/inadimplentes", sindicoMiddleware, inadimplenteHandler.list)
 
 	s.registerDocsRoutes(router)
 
