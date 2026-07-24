@@ -20,6 +20,8 @@ type Server struct {
 	visitRepository      repositories.VisitRepository
 	comunicadoRepository repositories.ComunicadoRepository
 	pagamentoRepository  repositories.PagamentoRepository
+	areaComumRepository  repositories.AreaComumRepository
+	reservaRepository    repositories.ReservaRepository
 }
 
 func New(cfg *config.Config, db *gorm.DB, userRepository repositories.UserRepository) *Server {
@@ -31,6 +33,8 @@ func New(cfg *config.Config, db *gorm.DB, userRepository repositories.UserReposi
 		visitRepository:      repositories.NewGormVisitRepository(db),
 		comunicadoRepository: repositories.NewGormComunicadoRepository(db),
 		pagamentoRepository:  repositories.NewGormPagamentoRepository(db),
+		areaComumRepository:  repositories.NewGormAreaComumRepository(db),
+		reservaRepository:    repositories.NewGormReservaRepository(db),
 	}
 }
 
@@ -76,6 +80,18 @@ func (s *Server) SetupRoutes() *gin.Engine {
 	inadimplenteService := services.NewInadimplenteService(s.pagamentoRepository)
 	inadimplenteHandler := newInadimplenteHandler(inadimplenteService)
 	router.GET("/sindico/inadimplentes", sindicoMiddleware, inadimplenteHandler.list)
+
+	areaComumService := services.NewAreaComumService(s.areaComumRepository)
+	areaComumHandler := newAreaComumHandler(areaComumService)
+
+	reservaService := services.NewReservaService(s.reservaRepository, s.areaComumRepository, s.pagamentoRepository)
+	reservaHandler := newReservaHandler(reservaService)
+
+	moradorMiddleware := serverMiddleware.RequireMoradorRole(s.userRepository)
+	router.GET("/morador/areas-comuns", moradorMiddleware, areaComumHandler.listAreas)
+	router.POST("/morador/reservas", moradorMiddleware, reservaHandler.create)
+	router.GET("/morador/reservas", moradorMiddleware, reservaHandler.listMinhas)
+	router.PATCH("/morador/reservas/:id/cancelar", moradorMiddleware, reservaHandler.cancelar)
 
 	s.registerDocsRoutes(router)
 
