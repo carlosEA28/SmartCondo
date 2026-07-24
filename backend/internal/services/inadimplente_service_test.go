@@ -15,10 +15,16 @@ import (
 type fakePagamentoRepository struct {
 	findInadimplentesResult []models.Pagamento
 	findInadimplentesErr    error
+	hasOverdueResult        bool
+	hasOverdueErr           error
 }
 
 func (f *fakePagamentoRepository) FindInadimplentes(_ context.Context) ([]models.Pagamento, error) {
 	return f.findInadimplentesResult, f.findInadimplentesErr
+}
+
+func (f *fakePagamentoRepository) HasOverduePayments(_ context.Context, _ uuid.UUID) (bool, error) {
+	return f.hasOverdueResult, f.hasOverdueErr
 }
 
 // --- helpers ---

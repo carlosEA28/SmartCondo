@@ -1,6 +1,6 @@
 # API Reference — SmartCondo
 
-> **Versão:** 3.0.0  
+> **Versão:** 4.0.0  
 > **Base URL:** `http://localhost:8080`  
 > **Formato:** JSON  
 > **Autenticação:** Header-based (X-User-ID) para rotas de síndico
@@ -24,6 +24,11 @@
 - [Porteiro](#porteiro)
   - [Pesquisar Visitantes](#pesquisar-visitantes)
   - [Liberar Visitante](#liberar-visitante)
+- [Morador](#morador)
+  - [Listar Áreas Comuns](#listar-áreas-comuns)
+  - [Criar Reserva](#criar-reserva)
+  - [Listar Minhas Reservas](#listar-minhas-reservas)
+  - [Cancelar Reserva](#cancelar-reserva)
 - [Síndico — Comunicados](#síndico--comunicados)
   - [Publicar Comunicado](#publicar-comunicado)
   - [Listar Comunicados](#listar-comunicados)
@@ -735,6 +740,238 @@ curl -X PATCH http://localhost:8080/porteiros/visitantes/f47ac10b-58cc-4372-a567
 
 ---
 
+## Morador
+
+### Autenticação
+
+As rotas de morador exigem o middleware `RequireMoradorRole`, que valida o usuário através do header:
+
+| Header       | Obrigatório | Descrição                    |
+|-------------|-------------|------------------------------|
+| `X-User-ID` | sim         | UUID do morador autenticado  |
+
+### Listar Áreas Comuns
+
+### `GET /morador/areas-comuns`
+
+Lista todas as áreas comuns disponíveis para reserva no condomínio (salão de festas, churrasqueira, piscina, etc.).
+
+#### Headers
+
+| Header       | Obrigatório | Descrição                   |
+|-------------|-------------|-----------------------------|
+| `X-User-ID` | sim         | UUID do morador autenticado |
+
+#### Respostas
+
+**`200 OK`**
+```json
+[
+  {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "nome": "Salão de Festas",
+    "descricao": "Salão com capacidade para 50 pessoas",
+    "capacidade": 50
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "nome": "Churrasqueira",
+    "descricao": "Churrasqueira com mesas e cadeiras",
+    "capacidade": 20
+  }
+]
+```
+
+#### Erros
+
+| Código | Body                                                | Motivo                    |
+|--------|-----------------------------------------------------|---------------------------|
+| 401    | `{"error": "missing authentication header"}`        | Header X-User-ID ausente  |
+| 403    | `{"error": "user is not authorized as morador"}`    | Usuário não é morador     |
+| 500    | `{"error": "failed to list common areas"}`          | Erro interno do servidor  |
+
+---
+
+### Criar Reserva
+
+### `POST /morador/reservas`
+
+Cria uma nova reserva de área comum. O morador não pode ter pagamentos atrasados, e não pode haver conflito de horário com outra reserva no mesmo local.
+
+#### Headers
+
+| Header       | Obrigatório | Descrição                   |
+|-------------|-------------|-----------------------------|
+| `X-User-ID` | sim         | UUID do morador autenticado |
+
+#### Request Body
+
+```json
+{
+  "areacomum_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "data": "2026-08-15",
+  "horaInicio": "18:00",
+  "horaFim": "22:00"
+}
+```
+
+| Campo           | Tipo    | Obrigatório | Descrição                         |
+|-----------------|---------|-------------|-----------------------------------|
+| `areacomum_id`  | string  | sim         | UUID da área comum                |
+| `data`          | string  | sim         | Data da reserva (`YYYY-MM-DD`)    |
+| `horaInicio`    | string  | sim         | Horário de início (`HH:MM`)       |
+| `horaFim`       | string  | sim         | Horário de fim (`HH:MM`)          |
+
+#### Respostas
+
+**`201 Created`**
+```json
+{
+  "id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+  "data": "2026-08-15T00:00:00Z",
+  "horaInicio": "18:00",
+  "horaFim": "22:00",
+  "status": "CONFIRMADA",
+  "morador_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "area_comum": {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "nome": "Salão de Festas",
+    "descricao": "Salão com capacidade para 50 pessoas",
+    "capacidade": 50
+  }
+}
+```
+
+#### Erros
+
+| Código | Body                                                | Motivo                              |
+|--------|-----------------------------------------------------|-------------------------------------|
+| 400    | `{"error": "invalid reservation data"}`             | JSON inválido ou campos ausentes    |
+| 401    | `{"error": "missing authentication header"}`        | Header X-User-ID ausente            |
+| 403    | `{"error": "user is not authorized as morador"}`    | Usuário não é morador               |
+| 403    | `{"error": "resident has overdue payments"}`        | Morador está inadimplente           |
+| 404    | `{"error": "area comum not found"}`                 | Área comum não encontrada           |
+| 409    | `{"error": "there is already a reservation for this area at the requested time"}` | Conflito de horário |
+| 500    | `{"error": "failed to create reservation"}`         | Erro interno do servidor            |
+
+#### Exemplos
+
+```bash
+curl -X POST http://localhost:8080/morador/reservas \
+  -H "Content-Type: application/json" \
+  -H "X-User-ID: f47ac10b-58cc-4372-a567-0e02b2c3d479" \
+  -d '{
+    "areacomum_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "data": "2026-08-15",
+    "horaInicio": "18:00",
+    "horaFim": "22:00"
+  }'
+```
+
+---
+
+### Listar Minhas Reservas
+
+### `GET /morador/reservas`
+
+Retorna todas as reservas do morador autenticado.
+
+#### Headers
+
+| Header       | Obrigatório | Descrição                   |
+|-------------|-------------|-----------------------------|
+| `X-User-ID` | sim         | UUID do morador autenticado |
+
+#### Respostas
+
+**`200 OK`**
+```json
+[
+  {
+    "id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "data": "2026-08-15T00:00:00Z",
+    "horaInicio": "18:00",
+    "horaFim": "22:00",
+    "status": "CONFIRMADA",
+    "morador_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "area_comum": {
+      "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "nome": "Salão de Festas",
+      "descricao": "Salão com capacidade para 50 pessoas",
+      "capacidade": 50
+    }
+  }
+]
+```
+
+#### Erros
+
+| Código | Body                                                | Motivo                    |
+|--------|-----------------------------------------------------|---------------------------|
+| 401    | `{"error": "missing authentication header"}`        | Header X-User-ID ausente  |
+| 403    | `{"error": "user is not authorized as morador"}`    | Usuário não é morador     |
+| 500    | `{"error": "failed to list reservations"}`          | Erro interno do servidor  |
+
+---
+
+### Cancelar Reserva
+
+### `PATCH /morador/reservas/:id/cancelar`
+
+Cancela uma reserva existente. Apenas o morador que criou a reserva pode cancelá-la.
+
+#### Headers
+
+| Header       | Obrigatório | Descrição                   |
+|-------------|-------------|-----------------------------|
+| `X-User-ID` | sim         | UUID do morador autenticado |
+
+#### Parâmetros de Path
+
+| Parâmetro | Tipo   | Obrigatório | Descrição               |
+|-----------|--------|-------------|-------------------------|
+| `id`      | string | sim         | UUID da reserva         |
+
+#### Respostas
+
+**`200 OK`**
+```json
+{
+  "id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+  "data": "2026-08-15T00:00:00Z",
+  "horaInicio": "18:00",
+  "horaFim": "22:00",
+  "status": "CANCELADA",
+  "morador_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "area_comum": {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "nome": "Salão de Festas",
+    "descricao": "Salão com capacidade para 50 pessoas",
+    "capacidade": 50
+  }
+}
+```
+
+#### Erros
+
+| Código | Body                                                | Motivo                           |
+|--------|-----------------------------------------------------|----------------------------------|
+| 400    | `{"error": "invalid reservation id"}`               | UUID da reserva inválido         |
+| 401    | `{"error": "missing authentication header"}`        | Header X-User-ID ausente         |
+| 403    | `{"error": "user is not authorized as morador"}`    | Usuário não é morador            |
+| 403    | `{"error": "you can only cancel your own reservations"}` | Reserva de outro morador    |
+| 404    | `{"error": "reserva not found"}`                    | Reserva não encontrada           |
+| 500    | `{"error": "failed to cancel reservation"}`         | Erro interno do servidor         |
+
+#### Exemplos
+
+```bash
+curl -X PATCH http://localhost:8080/morador/reservas/6ba7b810-9dad-11d1-80b4-00c04fd430c8/cancelar \
+  -H "X-User-ID: f47ac10b-58cc-4372-a567-0e02b2c3d479"
+```
+
+---
+
 ## Síndico — Comunicados
 
 ### Autenticação
@@ -1030,6 +1267,18 @@ Todas as respostas de erro seguem o formato:
 | `failed to get comunicado`                          | Erro interno ao buscar comunicado                       |
 | `failed to delete comunicado`                       | Erro interno ao excluir comunicado                      |
 | `failed to list inadimplentes`                      | Erro interno ao listar inadimplentes                    |
+| `invalid reservation data`                          | JSON inválido ou campos ausentes na criação de reserva |
+| `invalid reservation id`                            | UUID da reserva inválido                                |
+| `area comum not found`                              | Área comum não encontrada                               |
+| `reserva not found`                                 | Reserva não encontrada                                  |
+| `there is already a reservation for this area at the requested time` | Conflito de horário na reserva          |
+| `resident has overdue payments`                     | Morador está inadimplente e não pode reservar           |
+| `you can only cancel your own reservations`         | Tentativa de cancelar reserva de outro morador          |
+| `user is not authorized as morador`                 | Usuário não possui role de morador                      |
+| `failed to list common areas`                       | Erro interno ao listar áreas comuns                     |
+| `failed to create reservation`                      | Erro interno ao criar reserva                           |
+| `failed to list reservations`                       | Erro interno ao listar reservas                         |
+| `failed to cancel reservation`                      | Erro interno ao cancelar reserva                        |
 
 ---
 
@@ -1094,6 +1343,27 @@ Todas as respostas de erro seguem o formato:
 | `dataPublicacao` | string (datetime) | Data de publicação (coluna: `datapublicacao`) |
 | `sindicoId`      | string (UUID)     | FK para o síndico (coluna: `sindico_id`) |
 | `sindicoNome`    | string            | Nome do síndico (relacionamento)       |
+
+### AreaComum (Área Comum) — Tabela `areas_comuns`
+
+| Campo        | Tipo          | Descrição                              |
+|--------------|---------------|----------------------------------------|
+| `id`         | string (UUID) | Identificador único                    |
+| `nome`       | string        | Nome da área comum                     |
+| `descricao`  | string        | Descrição da área                      |
+| `capacidade` | integer       | Capacidade máxima de pessoas           |
+
+### Reserva (Reserva) — Tabela `reservas`
+
+| Campo        | Tipo              | Descrição                              |
+|--------------|-------------------|----------------------------------------|
+| `id`         | string (UUID)     | Identificador único                    |
+| `data`       | string (date)     | Data da reserva                        |
+| `horaInicio` | string            | Horário de início (`HH:MM`)            |
+| `horaFim`    | string            | Horário de fim (`HH:MM`)               |
+| `status`     | string            | `CONFIRMADA` ou `CANCELADA`            |
+| `moradorId`  | string (UUID)     | FK para o morador (coluna: `morador_id`) |
+| `areaComumId`| string (UUID)     | FK para a área comum (coluna: `areacomum_id`) |
 
 ### Pagamento (Pagamento) — Tabela `pagamento`
 
