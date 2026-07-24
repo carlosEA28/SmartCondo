@@ -1,7 +1,9 @@
-.PHONY: help build run test lint fmt deps clean migrate-create migrate-up migrate-down
+.PHONY: help build run test lint fmt deps clean migrate-create migrate-up migrate-down run-cron
 
 APP_NAME := backend
+CRON_NAME := cron
 CMD_DIR := ./cmd/api
+CRON_CMD_DIR := ./cmd/cron
 BUILD_DIR := ./bin
 PKG := ./...
 MIGRATIONS_DIR := ./db/migrations
@@ -59,6 +61,10 @@ migrate-up: ## Apply all pending database migrations
 migrate-down: ## Roll back the latest database migration
 	@if [ -z "$(DATABASE_URL)" ]; then echo "DATABASE_URL or database settings in .env are required" >&2; exit 1; fi
 	@$(MIGRATE) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" -verbose down 1
+
+run-cron: ## Run the cron binary
+	@echo "Running $(CRON_NAME)..."
+	@go run $(CRON_CMD_DIR)
 
 seed: ## Seed the database with initial data
 	@if [ -z "$(DATABASE_URL)" ]; then echo "DATABASE_URL or database settings in .env are required" >&2; exit 1; fi
