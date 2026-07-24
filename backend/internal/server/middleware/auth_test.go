@@ -220,3 +220,171 @@ func TestRequireSindicoRoleSetsUserID(t *testing.T) {
 		t.Fatalf("RequireSindicoRole() user_id = %v, want %v", capturedID, userID)
 	}
 }
+
+// --- RequireMoradorRole tests ---
+
+func setupMoradorMiddlewareRouter(userRepo *fakeUserRepo) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(RequireMoradorRole(userRepo))
+	router.GET("/protected", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "ok"})
+	})
+	return router
+}
+
+func TestRequireMoradorRoleMissingHeader(t *testing.T) {
+	t.Parallel()
+	userRepo := &fakeUserRepo{}
+	router := setupMoradorMiddlewareRouter(userRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestRequireMoradorRoleInvalidUUID(t *testing.T) {
+	t.Parallel()
+	userRepo := &fakeUserRepo{}
+	router := setupMoradorMiddlewareRouter(userRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("X-User-ID", "not-a-uuid")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestRequireMoradorRoleUserNotFound(t *testing.T) {
+	t.Parallel()
+	userRepo := &fakeUserRepo{findByIDErr: apperrors.ErrUserNotFound}
+	router := setupMoradorMiddlewareRouter(userRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("X-User-ID", uuid.New().String())
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestRequireMoradorRoleGenericError(t *testing.T) {
+	t.Parallel()
+	userRepo := &fakeUserRepo{findByIDErr: errors.New("database error")}
+	router := setupMoradorMiddlewareRouter(userRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("X-User-ID", uuid.New().String())
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestRequireMoradorRoleWrongRole(t *testing.T) {
+	t.Parallel()
+	userRepo := &fakeUserRepo{
+		findByIDResult: &models.User{
+			ID:   uuid.New(),
+			Role: models.RoleSindico,
+		},
+	}
+	router := setupMoradorMiddlewareRouter(userRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("X-User-ID", uuid.New().String())
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusForbidden)
+	}
+}
+
+func TestRequireMoradorRolePorteiroRole(t *testing.T) {
+	t.Parallel()
+	userRepo := &fakeUserRepo{
+		findByIDResult: &models.User{
+			ID:   uuid.New(),
+			Role: models.RolePorteiro,
+		},
+	}
+	router := setupMoradorMiddlewareRouter(userRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("X-User-ID", uuid.New().String())
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusForbidden)
+	}
+}
+
+func TestRequireMoradorRoleSuccess(t *testing.T) {
+	t.Parallel()
+	userID := uuid.New()
+	userRepo := &fakeUserRepo{
+		findByIDResult: &models.User{
+			ID:   userID,
+			Role: models.RoleMorador,
+		},
+	}
+	router := setupMoradorMiddlewareRouter(userRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("X-User-ID", userID.String())
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestRequireMoradorRoleSetsUserID(t *testing.T) {
+	t.Parallel()
+	userID := uuid.New()
+	userRepo := &fakeUserRepo{
+		findByIDResult: &models.User{
+			ID:   userID,
+			Role: models.RoleMorador,
+		},
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	var capturedID interface{}
+
+	router.Use(RequireMoradorRole(userRepo))
+	router.GET("/check", func(c *gin.Context) {
+		capturedID, _ = c.Get("user_id")
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/check", nil)
+	req.Header.Set("X-User-ID", userID.String())
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusOK)
+	}
+	if capturedID == nil {
+		t.Fatal("did not set user_id in context")
+	}
+	if id, ok := capturedID.(uuid.UUID); !ok || id != userID {
+		t.Fatalf("user_id = %v, want %v", capturedID, userID)
+	}
+}
