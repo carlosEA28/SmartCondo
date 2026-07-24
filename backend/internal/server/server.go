@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/carlosEA28/smartcondo/internal/config"
+	serverMiddleware "github.com/carlosEA28/smartcondo/internal/server/middleware"
 	providers "github.com/carlosEA28/smartcondo/internal/providers/aws"
 	"github.com/carlosEA28/smartcondo/internal/repositories"
 	"github.com/carlosEA28/smartcondo/internal/services"
@@ -12,20 +13,22 @@ import (
 )
 
 type Server struct {
-	config           *config.Config
-	db               *gorm.DB
-	userRepository   repositories.UserRepository
-	visitorRepository repositories.VisitorRepository
-	visitRepository  repositories.VisitRepository
+	config               *config.Config
+	db                   *gorm.DB
+	userRepository       repositories.UserRepository
+	visitorRepository    repositories.VisitorRepository
+	visitRepository      repositories.VisitRepository
+	comunicadoRepository repositories.ComunicadoRepository
 }
 
 func New(cfg *config.Config, db *gorm.DB, userRepository repositories.UserRepository) *Server {
 	return &Server{
-		config:             cfg,
-		db:                 db,
-		userRepository:     userRepository,
-		visitorRepository:  repositories.NewGormVisitorRepository(db),
-		visitRepository:    repositories.NewGormVisitRepository(db),
+		config:               cfg,
+		db:                   db,
+		userRepository:       userRepository,
+		visitorRepository:    repositories.NewGormVisitorRepository(db),
+		visitRepository:      repositories.NewGormVisitRepository(db),
+		comunicadoRepository: repositories.NewGormComunicadoRepository(db),
 	}
 }
 
@@ -59,6 +62,14 @@ func (s *Server) SetupRoutes() *gin.Engine {
 	porteiroHandler := newPorteiroHandler(porteiroService)
 	router.GET("/porteiros/visitantes", porteiroHandler.search)
 	router.PATCH("/porteiros/visitantes/:id/liberar", porteiroHandler.release)
+
+	comunicadoService := services.NewComunicadoService(s.comunicadoRepository, s.userRepository)
+	comunicadoHandler := newComunicadoHandler(comunicadoService)
+	sindicoMiddleware := serverMiddleware.RequireSindicoRole(s.userRepository)
+	router.POST("/sindico/comunicados", sindicoMiddleware, comunicadoHandler.create)
+	router.GET("/sindico/comunicados", comunicadoHandler.list)
+	router.GET("/sindico/comunicados/:id", comunicadoHandler.getByID)
+	router.DELETE("/sindico/comunicados/:id", sindicoMiddleware, comunicadoHandler.delete)
 
 	s.registerDocsRoutes(router)
 
