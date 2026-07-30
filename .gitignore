@@ -1,0 +1,30 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+
+# Variáveis locais (podem conter segredos)
+*.tfvars
+*.tfvars.json
+
+# Chaves privadas e certificados
+*.pem
+*.key
+
+# Variáveis de ambiente
+.env
+.env.*
+
+# Logs
+*.log
+crash.log
+
+# Arquivos de override locais
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Configuração local do Terraform CLI
+.terraformrc
+terraform.rc
