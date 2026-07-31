@@ -1,1 +1,15 @@
-aws_profile = "AdministratorAccess-235494777438"
+aws_region        = "us-east-1"
+aws_profile       = "AdministratorAccess-235494777438"
+project_name      = "smartcondo"
+environment       = "dev"
+vpc_cidr          = "10.0.0.0/16"
+azs               = ["us-east-1a", "us-east-1b"]
+github_org        = "YOUR_GITHUB_ORG"
+github_repo       = "SmartCondo"
+db_name           = "smartcondo"
+db_username       = "admin"
+db_password       = "CHANGE_ME"
+ecs_cpu           = 256
+ecs_memory        = 512
+ecs_desired_count = 2
+db_instance_class = "db.t3.micro"
